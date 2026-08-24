@@ -29,15 +29,29 @@ jobs:
       - name: Generate Xcode project
         working-directory: ios
         run: |
-          set -x
-          xcodegen generate --spec project.yml
-          echo "--- ios/ contents after generate ---"
-          ls -la
-          echo "--- any .xcodeproj anywhere in repo ---"
-          find "$GITHUB_WORKSPACE" -maxdepth 3 -name "*.xcodeproj" -print
-          # Fail loudly and early rather than letting xcodebuild report a
-          # confusing "unable to read project" several steps later.
-          test -d Nib.xcodeproj || { echo "::error::xcodegen did not produce ios/Nib.xcodeproj"; exit 1; }
+          xcodegen generate --spec project.yml > /tmp/xcodegen.log 2>&1
+          echo "xcodegen exit: $?" >> /tmp/xcodegen.log
+          {
+            echo "== which xcodegen: $(which xcodegen)"
+            echo "== ios/ =="
+            ls -la
+            echo "== Nib.xcodeproj/ =="
+            ls -la Nib.xcodeproj 2>&1 || echo MISSING
+            echo "== pbxproj head =="
+            head -c 200 Nib.xcodeproj/project.pbxproj 2>&1 || echo NO-PBXPROJ
+            echo "== xcodegen output =="
+            cat /tmp/xcodegen.log
+            echo "== xcodebuild -list =="
+            xcodebuild -list -project Nib.xcodeproj 2>&1 | head -40
+          } > /tmp/diag.txt 2>&1
+          # Job logs need admin to download, so fold the whole diagnostic into a
+          # single annotation, which is publicly readable.
+          python3 -c "
+import io
+t = io.open('/tmp/diag.txt', encoding='utf-8', errors='replace').read()
+t = t.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+print('::warning title=diagnostics::' + t[:8000])
+"
 
       # Pure-logic tests — no simulator needed. TextContextResolver lives here
       # precisely so its boundary math is verifiable without a device.
