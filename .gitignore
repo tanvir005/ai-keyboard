@@ -1,0 +1,34 @@
+# --- Node / backend (Phase 1, not yet built) ---
+node_modules/
+.env
+.env.*
+!.env.example
+.vercel/
+dist/
+coverage/
+
+# --- Xcode / iOS ---
+# The .xcodeproj is GENERATED from ios/project.yml by XcodeGen.
+# Never commit it: it is an unmergeable plist blob and would drift from the spec.
+*.xcodeproj/
+*.xcworkspace/
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+DerivedData/
+build/
+.build/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# --- Swift Package Manager ---
+.swiftpm/
+Package.resolved
+
+# --- macOS / Windows noise ---
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,110 @@
+# XcodeGen spec — the single source of truth for the Xcode project.
+#
+# The .xcodeproj is NOT committed. Regenerate it with:
+#     cd ios && xcodegen generate
+#
+# Rationale: .pbxproj is an unmergeable plist blob that cannot be authored
+# correctly without Xcode. This YAML can be written from any machine, and
+# both CI and the Mac regenerate an identical project from it.
+
+name: Nib
+
+options:
+  bundleIdPrefix: com.nib
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: "" # set locally in Xcode; left empty so CI can build unsigned
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    TARGETED_DEVICE_FAMILY: "1" # iPhone only for v1
+
+packages:
+  NibKit:
+    path: NibKit
+
+targets:
+  # ---------------------------------------------------------------
+  # Host app — onboarding, Home, History, Presets, Settings, Paywall
+  # ---------------------------------------------------------------
+  Nib:
+    type: application
+    platform: iOS
+    sources:
+      - path: Nib
+    dependencies:
+      - package: NibKit
+        product: NibKit
+      - target: NibKeyboard
+        embed: true
+        codeSign: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nib.app
+        PRODUCT_NAME: Nib
+        CODE_SIGN_ENTITLEMENTS: Nib/Nib.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: NO
+    info:
+      path: Nib/Info.plist
+      properties:
+        CFBundleDisplayName: Nib
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSupportsIndirectInputEvents: true
+        ITSAppUsesNonExemptEncryption: false
+
+  # ---------------------------------------------------------------
+  # Keyboard extension — the actual custom keyboard + AI toolbar
+  # ---------------------------------------------------------------
+  NibKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NibKeyboard
+    dependencies:
+      - package: NibKit
+        product: NibKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nib.app.keyboard
+        PRODUCT_NAME: NibKeyboard
+        CODE_SIGN_ENTITLEMENTS: NibKeyboard/NibKeyboard.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: NibKeyboard/Info.plist
+      properties:
+        CFBundleDisplayName: Nib
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            # Without this the "Allow Full Access" toggle never appears in
+            # iOS Settings at all — and with it off, no network call from the
+            # extension process is permitted by the OS.
+            RequestsOpenAccess: true
+
+schemes:
+  Nib:
+    build:
+      targets:
+        Nib: all
+        NibKeyboard: all
+    run:
+      config: Debug
+    # NibKit's unit tests are pure-Swift and run via `swift test` inside
+    # ios/NibKit (no simulator, no Xcode) — see .github/workflows/ios-build.yml.

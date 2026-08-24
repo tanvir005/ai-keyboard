@@ -1,0 +1,41 @@
+name: iOS
+
+# The code in this repo is authored on Windows, where Xcode does not exist.
+# This workflow is the compiler check that would otherwise be missing: every
+# push gets a real build of both targets plus the NibKit unit tests, so build
+# breaks are caught here rather than on the Mac.
+on:
+  push:
+    branches: ["**"]
+    paths: ["ios/**", ".github/workflows/ios-build.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios-build.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      # Pure-logic tests — no simulator needed. TextContextResolver lives here
+      # precisely so its boundary math is verifiable without a device.
+      - name: Test NibKit
+        working-directory: ios/NibKit
+        run: swift test
+
+      - name: Build app and keyboard extension
+        working-directory: ios
+        run: |
+          xcodebuild build \
+            -project Nib.xcodeproj \
+            -scheme Nib \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO

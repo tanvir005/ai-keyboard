@@ -1,0 +1,86 @@
+{
+  "identifier": "NIB_STOREKIT_CONFIG",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "59.99",
+      "familyShareable": false,
+      "internalID": "nib-lifetime",
+      "localizations": [
+        {
+          "description": "Unlimited edits, every tone, every language — one payment.",
+          "displayName": "Nib Pro — Lifetime",
+          "locale": "en_US"
+        }
+      ],
+      "productID": "com.nib.pro.lifetime",
+      "referenceName": "Nib Pro Lifetime",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_askToBuyEnabled": false,
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "nib-pro",
+      "localizations": [],
+      "name": "Nib Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "displayPrice": "4.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "nib-monthly",
+          "introductoryOffer": {
+            "internalID": "nib-monthly-trial",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
+          "localizations": [
+            {
+              "description": "Unlimited edits, every tone, every language.",
+              "displayName": "Nib Pro — Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.nib.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Nib Pro Monthly",
+          "subscriptionGroupID": "nib-pro",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "displayPrice": "29.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "nib-yearly",
+          "introductoryOffer": {
+            "internalID": "nib-yearly-trial",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
+          "localizations": [
+            {
+              "description": "Unlimited edits, every tone, every language. Best value.",
+              "displayName": "Nib Pro — Yearly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.nib.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Nib Pro Yearly",
+          "subscriptionGroupID": "nib-pro",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}
