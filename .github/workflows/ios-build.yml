@@ -34,10 +34,30 @@ jobs:
         run: swift test
 
       - name: Build app and keyboard extension
+        id: build
         working-directory: ios
+        continue-on-error: true
         run: |
+          set -o pipefail
           xcodebuild build \
             -project Nib.xcodeproj \
             -scheme Nib \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee /tmp/xcodebuild.log
+
+      # Raw job logs need admin rights to download, but annotations are readable
+      # by anyone. Re-emitting each compiler error as an annotation means a
+      # failure explains itself without anyone opening the Actions tab.
+      - name: Surface compile errors
+        if: always()
+        run: |
+          if [ -f /tmp/xcodebuild.log ]; then
+            grep -E "error:" /tmp/xcodebuild.log \
+              | sed 's|.*/ios/|ios/|' \
+              | sort -u | head -60 \
+              | while IFS= read -r line; do echo "::error::${line}"; done
+          fi
+          if [ "${{ steps.build.outcome }}" != "success" ]; then
+            echo "Build failed — see annotations above."
+            exit 1
+          fi
