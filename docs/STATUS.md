@@ -4,63 +4,61 @@
 
 Repo: https://github.com/tanvir005/ai-keyboard (branch `main`)
 
-The full iOS scaffold is written and pushed: host app (8 screens), keyboard
-extension (QWERTY + AI toolbar), and the shared NibKit package. Suggestions come
-from `StubAPIClient` — canned transforms, no backend, no API keys.
+The full iOS scaffold: host app (8 screens), keyboard extension (QWERTY + AI
+toolbar), and the shared NibKit package. Suggestions come from `StubAPIClient` —
+canned transforms, no backend, no API keys.
 
-## ⚠️ CI is FAILING — this is the first thing to deal with
+## ✅ CI is green on `main`
 
-The **iOS** workflow ran on commit `26bf71c` and failed. None of this Swift has
-ever been compiled — it was authored on Windows, where Xcode does not exist — so
-compile errors are expected, not surprising.
+Everything compiles. The workflow builds both targets and runs the NibKit tests
+on every push.
 
-**The failure has not been diagnosed yet.** GitHub's Actions UI could not be read
-without authentication, so the actual error text is unknown. Get it via either:
+### The failure that took four rounds to find
 
-```bash
-# option A — install the GitHub CLI, then:
-gh run list --workflow=ios-build.yml
-gh run view --log-failed
-```
+The first runs failed with `xcodebuild: error: Unable to read project`. The
+cause was not Swift at all:
 
-or just open the Actions tab in a browser, click the failed run, and copy the
-red step's output.
+> The project 'Nib' cannot be opened because it is in a future Xcode project
+> file format (77).
 
-### Where the failure most likely is
+Current XcodeGen writes `objectVersion 77`, which needs **Xcode 16**. The
+`macos-14` runner ships Xcode 15.4. Fixed by moving CI to `macos-15`.
 
-In rough order of likelihood — the run failed fast, which points at the early
-steps:
+**A Mac building this repo needs Xcode 16+ for exactly the same reason.** If
+only Xcode 15 is available, pin the format in `project.yml` rather than
+upgrading.
 
-1. **`xcodegen generate`** — `ios/project.yml` has never been executed. If the
-   spec is malformed, nothing downstream runs. Most suspect: the nested
-   `NSExtension` dictionary in the keyboard target's `info:` block, and the
-   local `packages:` path.
-2. **`swift test`** — a NibKit compile error would stop here. NibKit is built
-   for macOS purely so these tests can run headlessly; anything accidentally
-   iOS-only in that target would fail here but not in the app.
-3. **`xcodebuild`** — genuine SwiftUI compile errors in the app or extension.
-   Expect several; `@Observable`/`@Bindable` usage and the `PreferenceKey`
-   height plumbing in `KeyboardViewController` are the least-certain parts.
+Two things learned while debugging, worth keeping:
 
-## What was verified, and what wasn't
+- **Raw job logs need admin rights even on a public repo.** Annotations do not.
+  The workflow re-emits each compiler error as an annotation so failures explain
+  themselves via the public API.
+- **GitHub's Actions *web UI* cannot be read reliably by fetching** — it once
+  reported a confident false "success". The badge SVG
+  (`/actions/workflows/<file>/badge.svg`) is static and trustworthy; so is the
+  REST API.
 
-**Verified:**
-- Text-scope logic — the exact-suffix invariant and grapheme counting were
-  checked against a reference implementation. `"hi 👨‍👩‍👧‍👦"` is 4 `Character`s but
-  14 UTF-16 units; counting wrong would over-delete by 10 and shred the emoji.
-- No cross-target reference violations (extension never touches host-app types).
-- No missing `import NibKit`.
-- Module/type collision caught and fixed: NibKit's design-token enum was named
-  `Nib`, same as the app's module. Renamed to `NibStyle`.
+## What is verified, and what is not
 
-**Not verified — nothing here has been compiled or run.**
+**Verified on a real compiler:**
+- The whole project builds — app target and keyboard extension.
+- NibKit unit tests pass, including the text-scope logic: the exact-suffix
+  invariant and grapheme counting. `"hi 👨‍👩‍👧‍👦"` is 4 `Character`s but 14 UTF-16
+  units; counting wrong would over-delete by 10 and shred the emoji.
+- XcodeGen spec generates a valid two-target project.
+
+**Not verified — never run on a device.** Compiling is not working. Typing feel,
+keyboard height, Full Access degradation, and whether keys stay responsive
+during a request all need real hardware. See `docs/MAC_CHECKPOINTS.md`.
 
 ## Next session
 
-1. Get the CI failure text (above) and fix the errors.
-2. Once CI is green, build on the Mac: `ios/README.md` has setup;
-   `docs/MAC_CHECKPOINTS.md` has the walkthrough list.
-3. Then either polish the UI or start the backend (`docs/` has the full plan).
+1. Build on the Mac — `ios/README.md` for setup (**needs Xcode 16+**),
+   `docs/MAC_CHECKPOINTS.md` for the walkthrough.
+2. Then either polish the UI or start the backend (`docs/` has the full plan).
+
+Minor cleanup available: the workflow triggers on both `push` and
+`pull_request`, so every PR builds twice. Harmless and free on a public repo.
 
 ## Deliberate decisions worth not re-litigating
 
