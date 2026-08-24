@@ -45,13 +45,11 @@ jobs:
             xcodebuild -list -project Nib.xcodeproj 2>&1 | head -40
           } > /tmp/diag.txt 2>&1
           # Job logs need admin to download, so fold the whole diagnostic into a
-          # single annotation, which is publicly readable.
-          python3 -c "
-import io
-t = io.open('/tmp/diag.txt', encoding='utf-8', errors='replace').read()
-t = t.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
-print('::warning title=diagnostics::' + t[:8000])
-"
+          # single annotation, which is publicly readable. Pure bash on purpose:
+          # an inline Python block has to stay indented inside this scalar, and
+          # getting that wrong silently invalidates the whole workflow file.
+          MSG=$(sed -e 's/%/%25/g' /tmp/diag.txt | awk '{printf "%s%%0A", $0}')
+          echo "::warning title=diagnostics::${MSG}"
 
       # Pure-logic tests — no simulator needed. TextContextResolver lives here
       # precisely so its boundary math is verifiable without a device.
