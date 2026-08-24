@@ -21,11 +21,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        run: |
+          brew install xcodegen
+          echo "which: $(which xcodegen || echo NOT-FOUND)"
+          xcodegen --version || echo "version check failed"
 
       - name: Generate Xcode project
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          set -x
+          xcodegen generate --spec project.yml
+          echo "--- ios/ contents after generate ---"
+          ls -la
+          echo "--- any .xcodeproj anywhere in repo ---"
+          find "$GITHUB_WORKSPACE" -maxdepth 3 -name "*.xcodeproj" -print
+          # Fail loudly and early rather than letting xcodebuild report a
+          # confusing "unable to read project" several steps later.
+          test -d Nib.xcodeproj || { echo "::error::xcodegen did not produce ios/Nib.xcodeproj"; exit 1; }
 
       # Pure-logic tests — no simulator needed. TextContextResolver lives here
       # precisely so its boundary math is verifiable without a device.
