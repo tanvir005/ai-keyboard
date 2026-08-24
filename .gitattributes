@@ -1,0 +1,8 @@
+# Author on Windows, build on macOS — keep LF in the repo so Xcode, xcodebuild
+# and shell scripts see consistent line endings regardless of checkout OS.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
+*.woff2 binary
