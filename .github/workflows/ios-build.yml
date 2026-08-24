@@ -4,10 +4,10 @@ name: iOS
 # This workflow is the compiler check that would otherwise be missing: every
 # push gets a real build of both targets plus the NibKit unit tests, so build
 # breaks are caught here rather than on the Mac.
+#
 # Deliberately no `paths:` filter. Path filtering does not reliably match on the
 # push that first creates a branch, and a CI check that silently skips is worse
-# than no check at all when the author cannot compile locally. Everything in
-# this repo is iOS today; the extra minutes are cheap insurance.
+# than no check at all when the author cannot compile locally.
 on:
   push:
     branches: ["**"]
@@ -16,40 +16,27 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-15, not macos-14. Current XcodeGen writes project format
+    # objectVersion 77, which Xcode 15.4 (the macos-14 default) refuses to open
+    # with "a future Xcode project file format". macos-15 ships Xcode 16.
+    # A Mac building this repo needs Xcode 16+ for the same reason.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install XcodeGen
+      - name: Show toolchain
         run: |
-          brew install xcodegen
-          echo "which: $(which xcodegen || echo NOT-FOUND)"
-          xcodegen --version || echo "version check failed"
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Generate Xcode project
         working-directory: ios
         run: |
-          xcodegen generate --spec project.yml > /tmp/xcodegen.log 2>&1
-          echo "xcodegen exit: $?" >> /tmp/xcodegen.log
-          {
-            echo "== which xcodegen: $(which xcodegen)"
-            echo "== ios/ =="
-            ls -la
-            echo "== Nib.xcodeproj/ =="
-            ls -la Nib.xcodeproj 2>&1 || echo MISSING
-            echo "== pbxproj head =="
-            head -c 200 Nib.xcodeproj/project.pbxproj 2>&1 || echo NO-PBXPROJ
-            echo "== xcodegen output =="
-            cat /tmp/xcodegen.log
-            echo "== xcodebuild -list =="
-            xcodebuild -list -project Nib.xcodeproj 2>&1 | head -40
-          } > /tmp/diag.txt 2>&1
-          # Job logs need admin to download, so fold the whole diagnostic into a
-          # single annotation, which is publicly readable. Pure bash on purpose:
-          # an inline Python block has to stay indented inside this scalar, and
-          # getting that wrong silently invalidates the whole workflow file.
-          MSG=$(sed -e 's/%/%25/g' /tmp/diag.txt | awk '{printf "%s%%0A", $0}')
-          echo "::warning title=diagnostics::${MSG}"
+          xcodegen generate --spec project.yml
+          test -d Nib.xcodeproj || { echo "::error::xcodegen produced no ios/Nib.xcodeproj"; exit 1; }
 
       # Pure-logic tests — no simulator needed. TextContextResolver lives here
       # precisely so its boundary math is verifiable without a device.
@@ -71,7 +58,7 @@ jobs:
 
       # Raw job logs need admin rights to download, but annotations are readable
       # by anyone. Re-emitting each compiler error as an annotation means a
-      # failure explains itself without anyone opening the Actions tab.
+      # failure explains itself without opening the Actions tab.
       - name: Surface compile errors
         if: always()
         run: |
