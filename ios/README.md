@@ -10,6 +10,11 @@ Two targets, one shared package:
 
 ## Running it on the Mac
 
+> **Xcode 16 or newer is required.** Current XcodeGen writes project format
+> `objectVersion 77`; Xcode 15 refuses to open it with *"a future Xcode project
+> file format"*. If you are stuck on Xcode 15, say so — the format can be pinned
+> in `project.yml` instead of upgrading.
+
 The `.xcodeproj` is **not committed** — it is generated from `project.yml`.
 
 ```bash

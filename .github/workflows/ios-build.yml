@@ -4,10 +4,10 @@ name: iOS
 # This workflow is the compiler check that would otherwise be missing: every
 # push gets a real build of both targets plus the NibKit unit tests, so build
 # breaks are caught here rather than on the Mac.
+#
 # Deliberately no `paths:` filter. Path filtering does not reliably match on the
 # push that first creates a branch, and a CI check that silently skips is worse
-# than no check at all when the author cannot compile locally. Everything in
-# this repo is iOS today; the extra minutes are cheap insurance.
+# than no check at all when the author cannot compile locally.
 on:
   push:
     branches: ["**"]
@@ -16,16 +16,27 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macos-15, not macos-14. Current XcodeGen writes project format
+    # objectVersion 77, which Xcode 15.4 (the macos-14 default) refuses to open
+    # with "a future Xcode project file format". macos-15 ships Xcode 16.
+    # A Mac building this repo needs Xcode 16+ for the same reason.
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
         working-directory: ios
-        run: xcodegen generate
+        run: |
+          xcodegen generate --spec project.yml
+          test -d Nib.xcodeproj || { echo "::error::xcodegen produced no ios/Nib.xcodeproj"; exit 1; }
 
       # Pure-logic tests — no simulator needed. TextContextResolver lives here
       # precisely so its boundary math is verifiable without a device.
@@ -47,7 +58,7 @@ jobs:
 
       # Raw job logs need admin rights to download, but annotations are readable
       # by anyone. Re-emitting each compiler error as an annotation means a
-      # failure explains itself without anyone opening the Actions tab.
+      # failure explains itself without opening the Actions tab.
       - name: Surface compile errors
         if: always()
         run: |
