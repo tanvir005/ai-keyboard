@@ -4,12 +4,14 @@ name: iOS
 # This workflow is the compiler check that would otherwise be missing: every
 # push gets a real build of both targets plus the NibKit unit tests, so build
 # breaks are caught here rather than on the Mac.
+# Deliberately no `paths:` filter. Path filtering does not reliably match on the
+# push that first creates a branch, and a CI check that silently skips is worse
+# than no check at all when the author cannot compile locally. Everything in
+# this repo is iOS today; the extra minutes are cheap insurance.
 on:
   push:
     branches: ["**"]
-    paths: ["ios/**", ".github/workflows/ios-build.yml"]
   pull_request:
-    paths: ["ios/**", ".github/workflows/ios-build.yml"]
   workflow_dispatch:
 
 jobs:
