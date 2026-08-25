@@ -15,6 +15,11 @@ final class KeyboardViewController: UIInputViewController {
     private var host: UIHostingController<KeyboardRootView>!
     private var heightConstraint: NSLayoutConstraint?
 
+    /// Held rather than created per keystroke: the Taptic Engine needs warming,
+    /// and a generator built at press time fires late enough to feel detached
+    /// from the tap.
+    private let impact = UIImpactFeedbackGenerator(style: .light)
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -23,6 +28,7 @@ final class KeyboardViewController: UIInputViewController {
         let root = KeyboardRootView(
             model: model,
             onKey: { [weak self] in self?.handle($0) },
+            onPress: { [weak self] in self?.feedback(for: $0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
 
@@ -52,12 +58,34 @@ final class KeyboardViewController: UIInputViewController {
         // The host app cannot read this itself — record it so Settings can
         // report Full Access state honestly, as of the last keyboard use.
         SharedSettings.shared.recordFullAccess(hasFullAccess)
+
+        if SharedSettings.shared.hapticsEnabled, hasFullAccess {
+            impact.prepare()
+        }
     }
 
     private func updateHeight(_ height: CGFloat) {
         guard height > 0, let constraint = heightConstraint else { return }
         guard abs(constraint.constant - height) > 1 else { return }
         constraint.constant = height
+    }
+
+    // MARK: - Press feedback
+
+    /// Fires on touch-down, before the character is inserted.
+    ///
+    /// Both channels are gated on their Settings toggle. Haptics are gated on
+    /// Full Access too: `UIFeedbackGenerator` is inert in an extension without
+    /// it, so there is nothing to gain from warming the engine.
+    private func feedback(for cap: KeyCap) {
+        if SharedSettings.shared.soundEnabled {
+            UIDevice.current.playInputClick()
+        }
+
+        if SharedSettings.shared.hapticsEnabled, hasFullAccess {
+            impact.impactOccurred(intensity: 0.65)
+            impact.prepare()
+        }
     }
 
     // MARK: - Key handling
@@ -77,11 +105,16 @@ final class KeyboardViewController: UIInputViewController {
         case .shift, .mode:
             break // handled in the SwiftUI layer, which owns that state
         }
-
-        if SharedSettings.shared.soundEnabled {
-            UIDevice.current.playInputClick()
-        }
     }
+}
+
+// MARK: - Audio feedback
+
+/// Without this conformance `playInputClick()` is silently discarded: the
+/// system asks the input view whether it wants clicks, and the default answer
+/// is no. This is why the Sound toggle in Settings appeared to do nothing.
+extension KeyboardViewController: UIInputViewAudioFeedback {
+    var enableInputClicksWhenVisible: Bool { true }
 }
 
 // MARK: - KeyboardTextInterface
@@ -99,6 +132,7 @@ extension KeyboardViewController: KeyboardTextInterface {
 struct KeyboardRootView: View {
     @Bindable var model: ToolbarViewModel
     var onKey: (KeyCap) -> Void
+    var onPress: (KeyCap) -> Void
     var onHeightChange: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
@@ -109,7 +143,7 @@ struct KeyboardRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             AccessoryBarView(model: model)
-            KeyboardView(mode: mode, shifted: shifted, onKey: handle)
+            KeyboardView(mode: mode, shifted: shifted, onKey: handle, onPress: onPress)
                 .frame(height: keyAreaHeight)
         }
         .background(NibStyle.Palette.keyboardBackground)
