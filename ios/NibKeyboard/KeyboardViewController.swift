@@ -20,6 +20,22 @@ final class KeyboardViewController: UIInputViewController {
     /// from the tap.
     private let impact = UIImpactFeedbackGenerator(style: .light)
 
+    /// Hold-to-delete, shaped like the system keyboard: a pause so a normal tap
+    /// is never mistaken for a hold, then steady character deletion, then whole
+    /// words once the length of the hold makes it clear the user is clearing a
+    /// field rather than correcting a typo.
+    private enum DeleteRepeat {
+        static let firstDelay: TimeInterval = 0.45
+        static let interval: TimeInterval = 0.1
+        /// ~1.8s of held delete before words start going.
+        static let wordsAfterTicks = 18
+        /// Words are bigger units, so they land at half the character cadence.
+        static let wordEveryTicks = 2
+    }
+
+    private var deleteTimer: Timer?
+    private var deleteTicks = 0
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -29,6 +45,9 @@ final class KeyboardViewController: UIInputViewController {
             model: model,
             onKey: { [weak self] in self?.handle($0) },
             onPress: { [weak self] in self?.feedback(for: $0) },
+            onHoldBegin: { [weak self] in self?.beginRepeating($0) },
+            onHoldEnd: { [weak self] _ in self?.cancelRepeating() },
+            autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
 
@@ -64,6 +83,13 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        // A keyboard dismissed mid-hold would otherwise leave the repeater
+        // firing into a document that is no longer ours.
+        cancelRepeating()
+    }
+
     private func updateHeight(_ height: CGFloat) {
         guard height > 0, let constraint = heightConstraint else { return }
         guard abs(constraint.constant - height) > 1 else { return }
@@ -86,6 +112,113 @@ final class KeyboardViewController: UIInputViewController {
             impact.impactOccurred(intensity: 0.65)
             impact.prepare()
         }
+    }
+
+    // MARK: - Hold to repeat
+
+    private func beginRepeating(_ cap: KeyCap) {
+        guard cap.repeatsWhenHeld else { return }
+        cancelRepeating()
+        deleteTicks = 0
+
+        // Two stages: a one-shot delay, which then installs the repeater. Both
+        // go on the common run loop mode so a scrolling toolbar cannot stall
+        // the deletion mid-hold.
+        let starter = Timer(timeInterval: DeleteRepeat.firstDelay, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            let repeater = Timer(timeInterval: DeleteRepeat.interval, repeats: true) { [weak self] _ in
+                self?.repeatTick()
+            }
+            self.deleteTimer = repeater
+            RunLoop.main.add(repeater, forMode: .common)
+        }
+        deleteTimer = starter
+        RunLoop.main.add(starter, forMode: .common)
+    }
+
+    private func repeatTick() {
+        deleteTicks += 1
+
+        if deleteTicks < DeleteRepeat.wordsAfterTicks {
+            textDocumentProxy.deleteBackward()
+        } else if deleteTicks % DeleteRepeat.wordEveryTicks == 0 {
+            deleteWordBackward()
+        } else {
+            return // skipped tick — no feedback for a frame where nothing moved
+        }
+
+        feedback(for: .backspace)
+    }
+
+    private func cancelRepeating() {
+        deleteTimer?.invalidate()
+        deleteTimer = nil
+        deleteTicks = 0
+    }
+
+    /// Deletes back over any trailing spaces and then the word before them.
+    ///
+    /// Counted in `Character`s rather than unicode scalars so `deleteBackward()`
+    /// is called once per grapheme cluster — the same reason `TextContextResolver`
+    /// counts that way. An emoji in the deleted span is one delete, not four.
+    private func deleteWordBackward() {
+        guard let before = textDocumentProxy.documentContextBeforeInput, !before.isEmpty else {
+            textDocumentProxy.deleteBackward()
+            return
+        }
+
+        var index = before.endIndex
+        var count = 0
+
+        while index > before.startIndex {
+            let previous = before.index(before: index)
+            guard before[previous].isWhitespace else { break }
+            index = previous
+            count += 1
+        }
+
+        while index > before.startIndex {
+            let previous = before.index(before: index)
+            guard !before[previous].isWhitespace else { break }
+            index = previous
+            count += 1
+        }
+
+        for _ in 0 ..< max(count, 1) {
+            textDocumentProxy.deleteBackward()
+        }
+    }
+
+    // MARK: - Auto-capitalisation
+
+    /// True when the caret sits where a capital belongs — an empty field, or the
+    /// start of a new sentence.
+    ///
+    /// The shift state used to be set once, when the keyboard was created, and
+    /// only ever turned off. Clearing a field left it lowercase because nothing
+    /// ever asked this question again.
+    private func shouldAutoCapitalize() -> Bool {
+        guard let before = textDocumentProxy.documentContextBeforeInput else { return true }
+
+        var index = before.endIndex
+        var crossedSpace = false
+
+        while index > before.startIndex {
+            let previous = before.index(before: index)
+            let character = before[previous]
+
+            if character.isNewline { return true }
+            if character.isWhitespace {
+                crossedSpace = true
+                index = previous
+                continue
+            }
+            // A capital is due only after sentence-ending punctuation *and* a
+            // space — otherwise "e.g" would capitalise mid-word.
+            return crossedSpace && (character == "." || character == "!" || character == "?")
+        }
+
+        return true // nothing but whitespace behind the caret
     }
 
     // MARK: - Key handling
@@ -133,6 +266,12 @@ struct KeyboardRootView: View {
     @Bindable var model: ToolbarViewModel
     var onKey: (KeyCap) -> Void
     var onPress: (KeyCap) -> Void
+    var onHoldBegin: (KeyCap) -> Void
+    var onHoldEnd: (KeyCap) -> Void
+    /// Asks the controller whether the caret is somewhere a capital belongs.
+    /// The view cannot answer this itself — only the controller can see the
+    /// document.
+    var autoShift: () -> Bool
     var onHeightChange: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
@@ -143,8 +282,25 @@ struct KeyboardRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             AccessoryBarView(model: model)
-            KeyboardView(mode: mode, shifted: shifted, onKey: handle, onPress: onPress)
-                .frame(height: keyAreaHeight)
+            KeyboardView(
+                mode: mode,
+                shifted: shifted,
+                onKey: handle,
+                onPress: onPress,
+                onHoldBegin: onHoldBegin,
+                onHoldEnd: { cap in
+                    onHoldEnd(cap)
+                    // A held delete bypasses `handle`, so this is the only place
+                    // shift can be re-evaluated after one clears the field.
+                    shifted = autoShift()
+                }
+            )
+            .frame(height: keyAreaHeight)
+        }
+        .onAppear {
+            // The field may already contain text — starting shifted regardless
+            // capitalises the middle of somebody's sentence.
+            shifted = autoShift()
         }
         .background(NibStyle.Palette.keyboardBackground)
         .background {
@@ -163,10 +319,13 @@ struct KeyboardRootView: View {
             shifted.toggle()
         case .mode(let next):
             mode = next
-            shifted = next == .letters
-        case .character:
+            shifted = next == .letters ? autoShift() : false
+        case .character, .space, .newline, .backspace:
             onKey(cap)
-            if shifted { shifted = false } // auto-unshift, like the system keyboard
+            // Auto-unshift after a capital, and auto-shift again at the start of
+            // the next sentence — one rule covers both, because it asks where
+            // the caret actually is rather than tracking what was typed.
+            shifted = autoShift()
         default:
             onKey(cap)
         }

@@ -30,6 +30,13 @@ enum KeyCap: Hashable {
         }
     }
 
+    /// Keys that repeat while held. Only delete — the system keyboard repeats
+    /// nothing else either.
+    var repeatsWhenHeld: Bool {
+        if case .backspace = self { return true }
+        return false
+    }
+
     /// Relative width. 1.0 is a standard letter key.
     var widthUnits: CGFloat {
         switch self {
