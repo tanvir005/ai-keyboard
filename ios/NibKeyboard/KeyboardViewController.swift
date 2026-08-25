@@ -79,7 +79,11 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let height = view.heightAnchor.constraint(equalToConstant: 270)
+        // 32pt suggestion strip + 44pt tool row + 226pt of keys. Fixed, and it
+        // has to stay fixed: the input view does not resize in step with its
+        // content, so a board that grows mid-typing overflows the space the
+        // system gave it and clips at both ends.
+        let height = view.heightAnchor.constraint(equalToConstant: 302)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -432,9 +436,8 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !suggestions.isEmpty {
-                SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
-            }
+            // Always present. See SuggestionStrip for why it cannot come and go.
+            SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
             AccessoryBarView(model: model)
 
             if showingEmoji {
