@@ -10,6 +10,7 @@ struct KeyboardView: View {
     let mode: KeyboardMode
     let shifted: Bool
     var onKey: (KeyCap) -> Void
+    var onPress: (KeyCap) -> Void
 
     private let rowSpacing: CGFloat = 8
     private let keySpacing: CGFloat = 5
@@ -20,14 +21,15 @@ struct KeyboardView: View {
             VStack(spacing: rowSpacing) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: keySpacing) {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, cap in
+                        ForEach(Array(row.enumerated()), id: \.offset) { index, cap in
                             KeyButton(
                                 cap: cap,
                                 isActive: cap == .shift && shifted,
-                                width: width(for: cap, in: row, totalWidth: geo.size.width)
-                            ) {
-                                onKey(cap)
-                            }
+                                width: width(for: cap, in: row, totalWidth: geo.size.width),
+                                previewAnchor: previewAnchor(at: index, in: row),
+                                onPress: { onPress(cap) },
+                                action: { onKey(cap) }
+                            )
                         }
                     }
                 }
@@ -46,33 +48,81 @@ struct KeyboardView: View {
         guard totalUnits > 0, available > 0 else { return 0 }
         return available * (cap.widthUnits / totalUnits)
     }
+
+    /// The balloon is wider than the key it belongs to, so the outermost keys
+    /// pin it to their own edge. Centred, `Q`'s balloon would hang off the side
+    /// of the input view and be clipped in half.
+    private func previewAnchor(at index: Int, in row: [KeyCap]) -> Alignment {
+        if index == 0 { return .topLeading }
+        if index == row.count - 1 { return .topTrailing }
+        return .top
+    }
 }
 
+/// A single key.
+///
+/// Both feedback channels fire on touch-*down*, not on release. That ordering is
+/// the whole point: a confirmation that arrives after you have already lifted
+/// your finger reads as lag, which is why typing felt dead even though every
+/// keystroke was landing correctly.
 struct KeyButton: View {
     let cap: KeyCap
     var isActive: Bool = false
     let width: CGFloat
+    var previewAnchor: Alignment = .top
+    var onPress: () -> Void
     var action: () -> Void
 
-    @GestureState private var isPressed = false
+    static let height: CGFloat = 42
+
+    @State private var isPressed = false
 
     var body: some View {
         Text(cap.label)
             .font(labelFont)
             .foregroundStyle(isActive ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink)
-            .frame(width: width, height: 42)
+            .frame(width: width, height: Self.height)
             .background {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(fill)
+                    .overlay {
+                        // Keys with no balloon have to react in place, or shift,
+                        // delete and space stay visually inert under the finger.
+                        if isPressed, !showsBalloon {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(NibStyle.Palette.ink.opacity(0.16))
+                        }
+                    }
                     .shadow(color: .black.opacity(0.18), radius: 0, y: 1)
             }
-            .scaleEffect(isPressed ? 0.94 : 1)
-            .animation(.easeOut(duration: 0.08), value: isPressed)
+            .scaleEffect(isPressed && !showsBalloon ? 0.96 : 1)
+            .overlay(alignment: previewAnchor) {
+                if isPressed, showsBalloon {
+                    KeyPreview(label: cap.label, keyWidth: width)
+                        .offset(y: -KeyPreview.lift)
+                }
+            }
+            .zIndex(isPressed ? 1 : 0)
+            .animation(.easeOut(duration: 0.07), value: isPressed)
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .updating($isPressed) { _, state, _ in state = true }
-                    .onEnded { _ in action() }
+                    .onChanged { _ in
+                        guard !isPressed else { return }
+                        isPressed = true
+                        onPress()
+                    }
+                    .onEnded { _ in
+                        isPressed = false
+                        action()
+                    }
             )
+    }
+
+    /// Characters only — the same rule Apple applies. Shift, delete, space and
+    /// return are never hidden by your fingertip, so a balloon would be noise.
+    private var showsBalloon: Bool {
+        if case .character = cap { return true }
+        return false
     }
 
     private var fill: Color {
@@ -87,5 +137,47 @@ struct KeyButton: View {
         case .space, .mode: .system(size: 13, weight: .medium)
         default: .system(size: 16, weight: .medium)
         }
+    }
+}
+
+/// The press balloon — the character lifted clear of the finger covering it.
+///
+/// Apple draws theirs above the keyboard's top edge, over the host app. An
+/// extension cannot: the input view clips at its own bounds. So this is sized
+/// to fit *inside* the keyboard (48pt, against the 50pt of toolbar and padding
+/// above the top key row), which is why a top-row balloon briefly overlaps the
+/// tool chips. That overlap is the cost of staying inside the bounds we have.
+struct KeyPreview: View {
+    let label: String
+    let keyWidth: CGFloat
+
+    static let balloonHeight: CGFloat = 38
+    static let neckHeight: CGFloat = 10
+
+    /// How far above its key the balloon sits. The neck is drawn slightly
+    /// longer than this so it tucks under the key's rounded top and leaves no
+    /// seam.
+    static var lift: CGFloat { balloonHeight + neckHeight }
+
+    private var balloonWidth: CGFloat { max(keyWidth + 16, 40) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(.system(size: 26, weight: .regular))
+                .foregroundStyle(NibStyle.Palette.ink)
+                .frame(width: balloonWidth, height: Self.balloonHeight)
+                .background {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(NibStyle.Palette.key)
+                        .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
+                }
+
+            Rectangle()
+                .fill(NibStyle.Palette.key)
+                .frame(width: max(keyWidth - 8, 16), height: Self.neckHeight + 4)
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
     }
 }
