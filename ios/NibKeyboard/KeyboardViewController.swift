@@ -37,6 +37,12 @@ final class KeyboardViewController: UIInputViewController {
     private var deleteTimer: Timer?
     private var deleteTicks = 0
 
+    /// Two spaces become ". " only when the second follows the first quickly.
+    /// Timing it rather than reading the document alone leaves a deliberate
+    /// double space — someone lining text up — intact.
+    private static let doubleSpaceWindow: TimeInterval = 0.6
+    private var lastSpaceAt: Date?
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -49,6 +55,7 @@ final class KeyboardViewController: UIInputViewController {
             onHoldBegin: { [weak self] in self?.beginRepeating($0) },
             onHoldEnd: { [weak self] _ in self?.cancelRepeating() },
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
+            returnLabel: returnLabel(),
             onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
@@ -82,6 +89,20 @@ final class KeyboardViewController: UIInputViewController {
 
         if SharedSettings.shared.hapticsEnabled, hasFullAccess {
             impact.prepare()
+        }
+
+        host.rootView.returnLabel = returnLabel()
+    }
+
+    /// The keyboard outlives the field it was opened for — switching from a
+    /// chat box to a search box has to relabel the return key, or it keeps
+    /// promising to send something.
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+
+        let label = returnLabel()
+        if host.rootView.returnLabel != label {
+            host.rootView.returnLabel = label
         }
     }
 
@@ -208,6 +229,41 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// Turns a quick second space into ". ", and reports whether it did.
+    ///
+    /// Returns false for every case the rule does not cover, leaving the caller
+    /// to insert an ordinary space — see `TypingRules` for which those are.
+    private func promoteDoubleSpace() -> Bool {
+        guard
+            let last = lastSpaceAt,
+            Date().timeIntervalSince(last) < Self.doubleSpaceWindow,
+            let before = textDocumentProxy.documentContextBeforeInput,
+            TypingRules.shouldPromoteSpaceToSentenceBreak(before: before)
+        else { return false }
+
+        textDocumentProxy.deleteBackward()
+        textDocumentProxy.insertText(". ")
+        // Cleared so a third space types a space rather than stacking stops.
+        lastSpaceAt = nil
+        return true
+    }
+
+    /// What the return key should say for the field being typed into.
+    private func returnLabel() -> String {
+        switch textDocumentProxy.returnKeyType {
+        case .go: "Go"
+        case .google, .yahoo, .search: "Search"
+        case .join: "Join"
+        case .next: "Next"
+        case .route: "Route"
+        case .send: "Send"
+        case .done: "Done"
+        case .emergencyCall: "Call"
+        case .continue: "Continue"
+        default: "return"
+        }
+    }
+
     /// Inserts the glyph chosen from a held key's alternates row.
     ///
     /// Separate from `handle` because the choice is made by the gesture rather
@@ -257,7 +313,9 @@ final class KeyboardViewController: UIInputViewController {
         case .character(let c):
             textDocumentProxy.insertText(c)
         case .space:
+            if promoteDoubleSpace() { break }
             textDocumentProxy.insertText(" ")
+            lastSpaceAt = Date()
         case .newline:
             textDocumentProxy.insertText("\n")
         case .backspace:
@@ -292,6 +350,7 @@ struct KeyboardRootView: View {
     /// The view cannot answer this itself — only the controller can see the
     /// document.
     var autoShift: () -> Bool
+    var returnLabel: String
     var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
@@ -309,6 +368,7 @@ struct KeyboardRootView: View {
             KeyboardView(
                 mode: mode,
                 shifted: shifted,
+                returnLabel: returnLabel,
                 onKey: handle,
                 onPress: onPress,
                 onHoldBegin: onHoldBegin,

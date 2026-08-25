@@ -9,6 +9,9 @@ import NibKit
 struct KeyboardView: View {
     let mode: KeyboardMode
     let shifted: Bool
+    /// What the return key says in this field — "Send" in Messages, "Go" in
+    /// Safari. Only the controller can see the host app's `returnKeyType`.
+    var returnLabel: String = "return"
     var onKey: (KeyCap) -> Void
     var onPress: (KeyCap) -> Void
     var onHoldBegin: (KeyCap) -> Void
@@ -48,6 +51,7 @@ struct KeyboardView: View {
                                 onHoldBegin: { onHoldBegin(cap) },
                                 onHoldEnd: { onHoldEnd(cap) },
                                 onAlternate: onAlternate,
+                                labelOverride: labelOverride(for: cap),
                                 action: { onKey(cap) }
                             )
                         }
@@ -81,6 +85,12 @@ struct KeyboardView: View {
         let usable = available - keySpacing * CGFloat(row.count - 1)
         guard totalUnits > 0, usable > 0 else { return 0 }
         return usable * (cap.widthUnits / totalUnits)
+    }
+
+    /// Only the return key is relabelled, and only when the field asks for it.
+    private func labelOverride(for cap: KeyCap) -> String? {
+        if case .newline = cap { return returnLabel }
+        return nil
     }
 
     private func rowWidth(_ widths: [CGFloat]) -> CGFloat {
@@ -135,6 +145,9 @@ struct KeyButton: View {
     var onHoldBegin: () -> Void
     var onHoldEnd: () -> Void
     var onAlternate: (String) -> Void
+    /// Replaces the cap's own label. Used for the return key, whose text
+    /// belongs to the field being typed into rather than to the layout.
+    var labelOverride: String?
     var action: () -> Void
 
     static let height: CGFloat = 42
@@ -143,11 +156,12 @@ struct KeyButton: View {
     static let alternatePadding: CGFloat = 4
 
     @State private var isPressed = false
+    @State private var pressInside = true
     @State private var showingAlternates = false
     @State private var selectedAlternate = 0
 
     var body: some View {
-        Text(cap.label)
+        Text(labelOverride ?? cap.label)
             .font(labelFont)
             .foregroundStyle(isActive ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink)
             .frame(width: width, height: Self.height)
@@ -157,16 +171,16 @@ struct KeyButton: View {
                     .overlay {
                         // Keys with no balloon have to react in place, or shift,
                         // delete and space stay visually inert under the finger.
-                        if isPressed, !showsBalloon {
+                        if isPressed, pressInside, !showsBalloon {
                             RoundedRectangle(cornerRadius: 6)
                                 .fill(NibStyle.Palette.ink.opacity(0.16))
                         }
                     }
                     .shadow(color: .black.opacity(0.18), radius: 0, y: 1)
             }
-            .scaleEffect(isPressed && !showsBalloon ? 0.96 : 1)
+            .scaleEffect(isPressed && pressInside && !showsBalloon ? 0.96 : 1)
             .overlay(alignment: previewAnchor) {
-                if isPressed, showsBalloon, !showingAlternates {
+                if isPressed, pressInside, showsBalloon, !showingAlternates {
                     KeyPreview(label: cap.label, keyWidth: width)
                         .offset(y: -KeyPreview.lift)
                 }
@@ -182,6 +196,14 @@ struct KeyButton: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        // Shown live so a cancel is visible: slide off and the
+                        // balloon goes with it, rather than the keystroke
+                        // vanishing with no explanation.
+                        pressInside = TypingRules.releaseCommitsKey(
+                            location: value.location,
+                            size: CGSize(width: width, height: Self.height)
+                        )
+
                         if !isPressed {
                             isPressed = true
                             onPress()
@@ -202,7 +224,7 @@ struct KeyButton: View {
                             count: alternates.count
                         )
                     }
-                    .onEnded { _ in
+                    .onEnded { value in
                         isPressed = false
 
                         if showingAlternates {
@@ -211,9 +233,14 @@ struct KeyButton: View {
                             onAlternate(picked)
                         } else if cap.repeatsWhenHeld {
                             onHoldEnd()
-                        } else {
+                        } else if TypingRules.releaseCommitsKey(
+                            location: value.location,
+                            size: CGSize(width: width, height: Self.height)
+                        ) {
                             action()
                         }
+                        // Released away from the key: cancelled, deliberately.
+                        // Sliding off is how a keystroke is taken back.
                     }
             )
             // Simultaneous rather than sequenced: the drag has to keep tracking
