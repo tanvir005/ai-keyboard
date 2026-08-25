@@ -48,6 +48,7 @@ final class KeyboardViewController: UIInputViewController {
             onHoldBegin: { [weak self] in self?.beginRepeating($0) },
             onHoldEnd: { [weak self] _ in self?.cancelRepeating() },
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
+            onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
 
@@ -189,6 +190,16 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// Inserts the glyph chosen from a held key's alternates row.
+    ///
+    /// Separate from `handle` because the choice is made by the gesture rather
+    /// than by which key was struck — the key that opened the row is not the
+    /// character that ends up in the document.
+    private func insertAlternate(_ glyph: String) {
+        textDocumentProxy.insertText(glyph)
+        feedback(for: .character(glyph))
+    }
+
     // MARK: - Auto-capitalisation
 
     /// True when the caret sits where a capital belongs — an empty field, or the
@@ -272,6 +283,7 @@ struct KeyboardRootView: View {
     /// The view cannot answer this itself — only the controller can see the
     /// document.
     var autoShift: () -> Bool
+    var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
@@ -295,6 +307,12 @@ struct KeyboardRootView: View {
                     onHoldEnd(cap)
                     // A held delete bypasses `handle`, so this is the only place
                     // shift can be re-evaluated after one clears the field.
+                    shifted = autoShift()
+                },
+                onAlternate: { glyph in
+                    // Same reasoning: an alternate is inserted straight from the
+                    // gesture, so it never passes through `handle`.
+                    onAlternate(glyph)
                     shifted = autoShift()
                 }
             )
