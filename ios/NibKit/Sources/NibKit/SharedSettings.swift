@@ -20,7 +20,12 @@ public final class SharedSettings {
             // Off by default. This is the privacy promise from the Settings
             // screen, and TextContextResolver reads it literally.
             Key.readFullDraft: false,
-            Key.hapticsEnabled: false,
+            // On, like every keyboard people arrive from. It also has to be on
+            // by default to survive a build with no App Group: the extension
+            // then reads its own `UserDefaults.standard`, never sees what the
+            // host app wrote, and lives on these registered values forever.
+            // A dead-feeling keyboard is the worse failure mode.
+            Key.hapticsEnabled: true,
         ])
     }
 

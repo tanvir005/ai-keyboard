@@ -15,7 +15,12 @@ struct KeyboardView: View {
     var onHoldEnd: (KeyCap) -> Void
 
     private let rowSpacing: CGFloat = 8
-    private let keySpacing: CGFloat = 5
+    private let keySpacing: CGFloat = 6
+
+    /// Breathing room at the board's edges. Most of why the layout read as
+    /// having none was the nine-key row running flush to both sides — see
+    /// `isInsetRow`.
+    private let sideInset: CGFloat = 6
 
     var body: some View {
         GeometryReader { geo in
@@ -38,7 +43,7 @@ struct KeyboardView: View {
                     }
                 }
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, sideInset)
             .padding(.vertical, 6)
         }
     }
@@ -46,11 +51,33 @@ struct KeyboardView: View {
     /// Distributes the row's width by each key's relative units, so wide keys
     /// (shift, space, return) stay proportional at any screen size.
     private func width(for cap: KeyCap, in row: [KeyCap], totalWidth: CGFloat) -> CGFloat {
+        let available = totalWidth - sideInset * 2
+        guard available > 0 else { return 0 }
+
+        // The inset row borrows the ten-key row's key width rather than
+        // computing its own. The half key it then does not use falls either
+        // side as the indent, and its letters line up with the row above.
+        if isInsetRow(row) {
+            return max((available - keySpacing * 9) / 10, 0)
+        }
+
         let totalUnits = row.reduce(0) { $0 + $1.widthUnits }
-        let spacing = keySpacing * CGFloat(row.count - 1)
-        let available = totalWidth - spacing - 8
-        guard totalUnits > 0, available > 0 else { return 0 }
-        return available * (cap.widthUnits / totalUnits)
+        let usable = available - keySpacing * CGFloat(row.count - 1)
+        guard totalUnits > 0, usable > 0 else { return 0 }
+        return usable * (cap.widthUnits / totalUnits)
+    }
+
+    /// `asdfghjkl` — the only nine-letter row on any page.
+    ///
+    /// It used to stretch across the full width, making its keys ~11% wider
+    /// than the ten above and lining up with nothing. Every other row, function
+    /// keys included, still fills the board.
+    private func isInsetRow(_ row: [KeyCap]) -> Bool {
+        guard row.count == 9 else { return false }
+        return row.allSatisfy {
+            if case .character = $0 { return true }
+            return false
+        }
     }
 
     /// The balloon is wider than the key it belongs to, so the outermost keys
