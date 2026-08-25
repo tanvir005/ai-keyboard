@@ -43,6 +43,8 @@ final class KeyboardViewController: UIInputViewController {
     private static let doubleSpaceWindow: TimeInterval = 0.6
     private var lastSpaceAt: Date?
 
+    private let spelling = SpellSuggestions()
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -57,6 +59,8 @@ final class KeyboardViewController: UIInputViewController {
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
             returnLabel: returnLabel(),
             needsGlobe: needsInputModeSwitchKey,
+            suggestions: [],
+            onSuggestion: { [weak self] in self?.replaceCurrentWord(with: $0) },
             onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
@@ -75,7 +79,7 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let height = view.heightAnchor.constraint(equalToConstant: 270)
+        let height = view.heightAnchor.constraint(equalToConstant: 308)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -95,16 +99,48 @@ final class KeyboardViewController: UIInputViewController {
         host.rootView.returnLabel = returnLabel()
     }
 
-    /// The keyboard outlives the field it was opened for — switching from a
-    /// chat box to a search box has to relabel the return key, or it keeps
-    /// promising to send something.
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        documentChanged()
+    }
 
+    /// Everything that has to be recomputed when the document moves under us.
+    ///
+    /// Called from `textDidChange` and after our own edits, because the two do
+    /// not reliably cover each other — a caret moved by the user arrives only
+    /// through the first, and the ordering of the second is ours to control.
+    private func documentChanged() {
+        // The keyboard outlives the field it was opened for: moving from a chat
+        // box to a search box has to relabel return, or it keeps promising to
+        // send something.
         let label = returnLabel()
         if host.rootView.returnLabel != label {
             host.rootView.returnLabel = label
         }
+
+        let words = spelling.suggestions(before: textDocumentProxy.documentContextBeforeInput)
+        if host.rootView.suggestions != words {
+            host.rootView.suggestions = words
+        }
+    }
+
+    /// Swaps the word under the caret for a tapped suggestion.
+    ///
+    /// Deletes by `Character` count so one call per grapheme cluster is made —
+    /// the same reason `deleteWordBackward` counts that way.
+    private func replaceCurrentWord(with replacement: String) {
+        guard
+            let before = textDocumentProxy.documentContextBeforeInput,
+            let word = CurrentWord.trailing(in: before)
+        else { return }
+
+        for _ in 0 ..< word.count {
+            textDocumentProxy.deleteBackward()
+        }
+        textDocumentProxy.insertText(replacement)
+
+        feedback(for: .character(replacement))
+        documentChanged()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -195,6 +231,9 @@ final class KeyboardViewController: UIInputViewController {
         deleteTimer?.invalidate()
         deleteTimer = nil
         deleteTicks = 0
+        // Once, on release, rather than on every tick: running the spell
+        // checker ten times a second through a hold is work nobody sees.
+        documentChanged()
     }
 
     /// Deletes back over any trailing spaces and then the word before them.
@@ -273,6 +312,7 @@ final class KeyboardViewController: UIInputViewController {
     private func insertAlternate(_ glyph: String) {
         textDocumentProxy.insertText(glyph)
         feedback(for: .character(glyph))
+        documentChanged()
     }
 
     // MARK: - Auto-capitalisation
@@ -328,6 +368,8 @@ final class KeyboardViewController: UIInputViewController {
         case .shift, .mode:
             break // handled in the SwiftUI layer, which owns that state
         }
+
+        documentChanged()
     }
 }
 
@@ -355,6 +397,8 @@ struct KeyboardRootView: View {
     var autoShift: () -> Bool
     var returnLabel: String
     var needsGlobe: Bool
+    var suggestions: [String]
+    var onSuggestion: (String) -> Void
     var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
@@ -369,6 +413,7 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
             AccessoryBarView(model: model)
 
             if showingEmoji {
