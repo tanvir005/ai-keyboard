@@ -79,7 +79,7 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let height = view.heightAnchor.constraint(equalToConstant: 308)
+        let height = view.heightAnchor.constraint(equalToConstant: 270)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -432,7 +432,9 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
+            if !suggestions.isEmpty {
+                SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
+            }
             AccessoryBarView(model: model)
 
             if showingEmoji {

@@ -7,9 +7,13 @@ import NibKit
 /// mean the AI tools vanish exactly while you are typing, which is when
 /// reaching for Fix is most likely.
 ///
-/// The strip keeps its height whether or not it has anything to show. A
-/// keyboard that grows and shrinks under the thumb moves every key mid-sentence,
-/// and the cost of that is worse than the cost of an empty row.
+/// Shown only when it has something to offer, so an idle keyboard is 38pt
+/// shorter. The cost is that the keys move when it appears — the board grows,
+/// and every key with it. Nib's own row of tools already makes it taller than
+/// the stock keyboard, which is what tipped the balance toward reclaiming the
+/// space; the trade is real either way.
+///
+/// The parent decides whether to show this. It is never rendered empty.
 struct SuggestionStrip: View {
     let suggestions: [String]
     var onPick: (String) -> Void
@@ -18,30 +22,26 @@ struct SuggestionStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if suggestions.isEmpty {
-                Color.clear
-            } else {
-                ForEach(Array(suggestions.enumerated()), id: \.offset) { index, word in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(NibStyle.Palette.divider)
-                            .frame(width: 1, height: 18)
-                    }
-
-                    Button {
-                        onPick(word)
-                    } label: {
-                        Text(word)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(NibStyle.Palette.ink)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .frame(maxWidth: .infinity, minHeight: Self.height)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Replace with \(word)")
+            ForEach(Array(suggestions.enumerated()), id: \.offset) { index, word in
+                if index > 0 {
+                    Rectangle()
+                        .fill(NibStyle.Palette.divider)
+                        .frame(width: 1, height: 18)
                 }
+
+                Button {
+                    onPick(word)
+                } label: {
+                    Text(word)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(NibStyle.Palette.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: Self.height)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Replace with \(word)")
             }
         }
         .frame(height: Self.height)
