@@ -19,6 +19,37 @@ enum KeyCap: Hashable {
         }
     }
 
+    /// Function keys draw a symbol rather than a glyph.
+    ///
+    /// `⇧`, `⌫` and `🌐` are text: they render at whatever weight and optical
+    /// centre the font happens to choose, and the emoji ones come out in full
+    /// colour against a monochrome board. Both stock keyboards use line
+    /// symbols, and these are the same ones.
+    var symbolName: String? {
+        switch self {
+        case .shift: "shift"
+        case .backspace: "delete.left"
+        case .globe: "globe"
+        case .emoji: "face.smiling"
+        default: nil
+        }
+    }
+
+    /// Spoken by VoiceOver, which would otherwise read a symbol key as nothing
+    /// at all and a glyph key as the glyph.
+    var spokenLabel: String {
+        switch self {
+        case .character(let c): c
+        case .shift: "Shift"
+        case .backspace: "Delete"
+        case .mode(let m): m == .letters ? "Letters" : (m == .numbers ? "Numbers" : "Symbols")
+        case .space: "Space"
+        case .newline: "Return"
+        case .globe: "Next keyboard"
+        case .emoji: "Emoji"
+        }
+    }
+
     var label: String {
         switch self {
         case .character(let c): c

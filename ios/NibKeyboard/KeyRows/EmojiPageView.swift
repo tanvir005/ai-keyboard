@@ -67,8 +67,13 @@ struct EmojiPageView: View {
                             onPress()
                             selected = category.id
                         } label: {
-                            Text(category.symbol)
-                                .font(.system(size: 19))
+                            Image(systemName: category.icon)
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundStyle(
+                                    category.id == selected
+                                        ? NibStyle.Palette.ink
+                                        : NibStyle.Palette.inkFaint
+                                )
                                 .frame(width: 34, height: 32)
                                 .background {
                                     if category.id == selected {
@@ -84,7 +89,7 @@ struct EmojiPageView: View {
                 }
             }
 
-            functionKey("⌫", width: 46) {
+            functionKey(symbol: "delete.left", spoken: "Delete", width: 46) {
                 onPress()
                 onBackspace()
             }
@@ -94,13 +99,22 @@ struct EmojiPageView: View {
     }
 
     private func functionKey(
-        _ label: String,
+        _ label: String? = nil,
+        symbol: String? = nil,
+        spoken: String? = nil,
         width: CGFloat,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(label)
-                .font(.system(size: 14, weight: .medium))
+            Group {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .regular))
+                } else {
+                    Text(label ?? "")
+                        .font(.system(size: 14, weight: .medium))
+                }
+            }
                 .foregroundStyle(NibStyle.Palette.ink)
                 .frame(width: width, height: 34)
                 .background {
@@ -111,5 +125,6 @@ struct EmojiPageView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(spoken ?? label ?? "")
     }
 }
