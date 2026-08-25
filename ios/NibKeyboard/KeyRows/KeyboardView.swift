@@ -44,7 +44,12 @@ struct KeyboardView: View {
                 }
             }
             .padding(.horizontal, sideInset)
-            .padding(.vertical, 6)
+            // Asymmetric on purpose: the top row's balloon is drawn upward into
+            // this gap, and the input view clips at its own edge. Without the
+            // headroom the balloon cannot grow to the size a thumb-covered key
+            // actually needs.
+            .padding(.top, 18)
+            .padding(.bottom, 6)
         }
     }
 
@@ -188,14 +193,14 @@ struct KeyButton: View {
 ///
 /// Apple draws theirs above the keyboard's top edge, over the host app. An
 /// extension cannot: the input view clips at its own bounds. So this is sized
-/// to fit *inside* the keyboard (48pt, against the 50pt of toolbar and padding
-/// above the top key row), which is why a top-row balloon briefly overlaps the
-/// tool chips. That overlap is the cost of staying inside the bounds we have.
+/// to fit *inside* the keyboard — 56pt against the 62pt of toolbar and top
+/// padding above the first key row — which is why a top-row balloon briefly
+/// overlaps the tool chips. That overlap is the cost of the bounds we have.
 struct KeyPreview: View {
     let label: String
     let keyWidth: CGFloat
 
-    static let balloonHeight: CGFloat = 38
+    static let balloonHeight: CGFloat = 46
     static let neckHeight: CGFloat = 10
 
     /// How far above its key the balloon sits. The neck is drawn slightly
@@ -203,16 +208,19 @@ struct KeyPreview: View {
     /// seam.
     static var lift: CGFloat { balloonHeight + neckHeight }
 
-    private var balloonWidth: CGFloat { max(keyWidth + 16, 40) }
+    /// Half a key wider on each side, which is roughly the stock keyboard's
+    /// proportion. The floor matters on the symbols page, where a narrow key
+    /// would otherwise get a balloon too small to read at a glance.
+    private var balloonWidth: CGFloat { max(keyWidth * 1.5, 46) }
 
     var body: some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.system(size: 26, weight: .regular))
+                .font(.system(size: 32, weight: .regular))
                 .foregroundStyle(NibStyle.Palette.ink)
                 .frame(width: balloonWidth, height: Self.balloonHeight)
                 .background {
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 9)
                         .fill(NibStyle.Palette.key)
                         .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
                 }

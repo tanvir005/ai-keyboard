@@ -65,7 +65,7 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let height = view.heightAnchor.constraint(equalToConstant: 258)
+        let height = view.heightAnchor.constraint(equalToConstant: 270)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -277,7 +277,10 @@ struct KeyboardRootView: View {
     @State private var mode: KeyboardMode = .letters
     @State private var shifted = true
 
-    private let keyAreaHeight: CGFloat = 214
+    // 226 rather than 214: the key rows now sit 12pt lower to leave the press
+    // balloon somewhere to go. Without matching that here the bottom row would
+    // be pushed into the home indicator.
+    private let keyAreaHeight: CGFloat = 226
 
     var body: some View {
         VStack(spacing: 0) {
