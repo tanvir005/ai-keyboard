@@ -11,19 +11,25 @@ public enum EmojiCatalog {
 
     public struct Category: Identifiable, Hashable {
         public let id: String
-        /// The tab's own glyph, drawn from its contents.
+        /// The tab's own glyph, drawn from its contents. Kept as documentation
+        /// of what the category is for; the tab bar draws `icon`.
         public let symbol: String
+        /// SF Symbol for the tab. Both stock keyboards tab their categories
+        /// with monochrome line symbols — a row of full-colour emoji competes
+        /// with the grid it is meant to be navigating.
+        public let icon: String
         public let emoji: [String]
 
-        public init(id: String, symbol: String, emoji: [String]) {
+        public init(id: String, symbol: String, icon: String, emoji: [String]) {
             self.id = id
             self.symbol = symbol
+            self.icon = icon
             self.emoji = emoji
         }
     }
 
     public static let categories: [Category] = [
-        Category(id: "Smileys", symbol: "😀", emoji: [
+        Category(id: "Smileys", symbol: "😀", icon: "face.smiling", emoji: [
             "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃",
             "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
             "😋", "😛", "😜", "🤪", "😝", "🤗", "🤭", "🤔", "🤐", "😐",
@@ -33,7 +39,7 @@ public enum EmojiCatalog {
             "😦", "😧", "😨", "😰", "😥", "😢", "😭", "😱", "😖", "😣",
             "😞", "😓", "😩", "😫", "🥱", "😤", "😡", "😠", "🤬", "😈",
         ]),
-        Category(id: "People", symbol: "👋", emoji: [
+        Category(id: "People", symbol: "👋", icon: "hand.wave", emoji: [
             "👋", "🤚", "🖐", "✋", "🖖", "👌", "🤌", "🤏", "✌️", "🤞",
             "🤟", "🤘", "🤙", "👈", "👉", "👆", "👇", "☝️", "👍", "👎",
             "✊", "👊", "🤛", "🤜", "👏", "🙌", "👐", "🤲", "🤝", "🙏",
@@ -41,7 +47,7 @@ public enum EmojiCatalog {
             "👶", "🧒", "👦", "👧", "🧑", "👨", "👩", "🧓", "👴", "👵",
             "🙋", "🤦", "🤷", "💁", "🙇", "🕺", "💃", "👫", "👪", "🫂",
         ]),
-        Category(id: "Nature", symbol: "🐶", emoji: [
+        Category(id: "Nature", symbol: "🐶", icon: "leaf", emoji: [
             "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯",
             "🦁", "🐮", "🐷", "🐸", "🐵", "🙈", "🙉", "🙊", "🐔", "🐧",
             "🐦", "🐤", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄",
@@ -51,7 +57,7 @@ public enum EmojiCatalog {
             "🌸", "💐", "🌹", "🌺", "🌻", "🌼", "🌷", "🌍", "🌙", "⭐️",
             "🌟", "✨", "⚡️", "🔥", "🌈", "☀️", "⛅️", "☁️", "❄️", "💧",
         ]),
-        Category(id: "Food", symbol: "🍎", emoji: [
+        Category(id: "Food", symbol: "🍎", icon: "fork.knife", emoji: [
             "🍎", "🍐", "🍊", "🍋", "🍌", "🍉", "🍇", "🍓", "🫐", "🍈",
             "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🥑", "🍆", "🥕",
             "🌽", "🌶", "🥒", "🥬", "🥦", "🧄", "🧅", "🥔", "🍞", "🥐",
@@ -60,7 +66,7 @@ public enum EmojiCatalog {
             "🍚", "🍛", "🍦", "🍩", "🍪", "🎂", "🍰", "🧁", "🍫", "🍬",
             "☕️", "🍵", "🧃", "🥤", "🍺", "🍻", "🥂", "🍷", "🥃", "🍾",
         ]),
-        Category(id: "Activity", symbol: "⚽️", emoji: [
+        Category(id: "Activity", symbol: "⚽️", icon: "figure.run", emoji: [
             "⚽️", "🏀", "🏈", "⚾️", "🎾", "🏐", "🏉", "🎱", "🏓", "🏸",
             "🥅", "🏒", "🏑", "🥍", "🏏", "⛳️", "🏹", "🎣", "🥊", "🥋",
             "⛸", "🎿", "🛷", "🏂", "🏋️", "🤸", "🤺", "⛹️", "🤾", "🏌️",
@@ -68,7 +74,7 @@ public enum EmojiCatalog {
             "🥉", "🏅", "🎖", "🎗", "🎫", "🎟", "🎪", "🎭", "🎨", "🎬",
             "🎤", "🎧", "🎼", "🎹", "🥁", "🎷", "🎺", "🎸", "🎻", "🎲",
         ]),
-        Category(id: "Travel", symbol: "🚗", emoji: [
+        Category(id: "Travel", symbol: "🚗", icon: "car", emoji: [
             "🚗", "🚕", "🚙", "🚌", "🚎", "🏎", "🚓", "🚑", "🚒", "🚐",
             "🛻", "🚚", "🚛", "🚜", "🛵", "🏍", "🛺", "🚲", "🛴", "🚨",
             "🚔", "🚍", "🚝", "🚄", "🚅", "🚈", "🚂", "🚆", "🚇", "🚊",
@@ -77,7 +83,7 @@ public enum EmojiCatalog {
             "🏰", "🏯", "🏟", "🎡", "🎢", "🎠", "⛲️", "⛱", "🏖", "🏝",
             "🏔", "⛰", "🌋", "🗻", "🏕", "⛺️", "🏠", "🏡", "🏢", "🏥",
         ]),
-        Category(id: "Objects", symbol: "💡", emoji: [
+        Category(id: "Objects", symbol: "💡", icon: "lightbulb", emoji: [
             "⌚️", "📱", "💻", "⌨️", "🖥", "🖨", "🖱", "💽", "💾", "📀",
             "📷", "📸", "📹", "🎥", "📞", "☎️", "📟", "📠", "📺", "📻",
             "⏰", "⏱", "⏲", "🕰", "⌛️", "⏳", "📡", "🔋", "🔌", "💡",
@@ -88,7 +94,7 @@ public enum EmojiCatalog {
             "💊", "💉", "🩹", "🩺", "🌡", "🧬", "🦠", "🧫", "🧪", "🧹",
             "📚", "📖", "📝", "✏️", "🖊", "🖌", "📎", "📌", "📍", "✂️",
         ]),
-        Category(id: "Symbols", symbol: "❤️", emoji: [
+        Category(id: "Symbols", symbol: "❤️", icon: "heart", emoji: [
             "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔",
             "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💯", "💢",
             "💥", "💫", "💦", "💨", "🕳", "💬", "💭", "🗯", "♠️", "♥️",

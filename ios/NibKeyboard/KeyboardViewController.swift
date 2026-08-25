@@ -164,6 +164,12 @@ final class KeyboardViewController: UIInputViewController {
     /// Full Access too: `UIFeedbackGenerator` is inert in an extension without
     /// it, so there is nothing to gain from warming the engine.
     private func feedback(for cap: KeyCap) {
+        // Delete on an empty field removes nothing, so it must not sound or
+        // feel as though it did. The click and the tap are a report that
+        // something happened — firing them into an empty field is the keyboard
+        // telling the user it deleted text that was not there.
+        if case .backspace = cap, !hasTextToDelete { return }
+
         if SharedSettings.shared.soundEnabled {
             AudioServicesPlaySystemSound(Self.clickSound(for: cap))
         }
@@ -213,7 +219,20 @@ final class KeyboardViewController: UIInputViewController {
         RunLoop.main.add(starter, forMode: .common)
     }
 
+    /// Whether there is anything behind the caret at all.
+    private var hasTextToDelete: Bool {
+        !(textDocumentProxy.documentContextBeforeInput ?? "").isEmpty
+    }
+
     private func repeatTick() {
+        // Once the field is empty the hold has nothing left to do. Stopping
+        // here rather than ticking on also means the finger can stay down
+        // without the keyboard clicking at an empty field.
+        guard hasTextToDelete else {
+            cancelRepeating()
+            return
+        }
+
         deleteTicks += 1
 
         if deleteTicks < DeleteRepeat.wordsAfterTicks {

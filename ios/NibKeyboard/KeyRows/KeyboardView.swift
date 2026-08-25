@@ -164,8 +164,7 @@ struct KeyButton: View {
     @State private var selectedAlternate = 0
 
     var body: some View {
-        Text(labelOverride ?? cap.label)
-            .font(labelFont)
+        keyLabel
             .foregroundStyle(isActive ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink)
             .frame(width: width, height: Self.height)
             .background {
@@ -257,6 +256,39 @@ struct KeyButton: View {
                         showingAlternates = true
                     }
             )
+    }
+
+    /// A relabelled return key is text; a function key is a symbol; everything
+    /// else is its own glyph.
+    @ViewBuilder
+    private var keyLabel: some View {
+        if let labelOverride {
+            Text(labelOverride).font(labelFont)
+        } else if let symbol = symbolName {
+            Image(systemName: symbol)
+                .font(.system(size: symbolSize, weight: .regular))
+                .accessibilityLabel(cap.spokenLabel)
+        } else {
+            Text(cap.label)
+                .font(labelFont)
+                .accessibilityLabel(cap.spokenLabel)
+        }
+    }
+
+    private var symbolName: String? {
+        // Shift fills in when it is on, which is how the stock keyboard shows
+        // the difference without a second colour.
+        if case .shift = cap, isActive { return "shift.fill" }
+        return cap.symbolName
+    }
+
+    /// Symbols are optically larger than type at the same point size, so these
+    /// sit below the 21pt of a letter cap rather than matching it.
+    private var symbolSize: CGFloat {
+        switch cap {
+        case .shift, .backspace: 19
+        default: 20
+        }
     }
 
     /// Characters only — the same rule Apple applies. Shift, delete, space and
