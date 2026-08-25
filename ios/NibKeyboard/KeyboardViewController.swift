@@ -56,6 +56,7 @@ final class KeyboardViewController: UIInputViewController {
             onHoldEnd: { [weak self] _ in self?.cancelRepeating() },
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
             returnLabel: returnLabel(),
+            needsGlobe: needsInputModeSwitchKey,
             onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
@@ -322,6 +323,8 @@ final class KeyboardViewController: UIInputViewController {
             textDocumentProxy.deleteBackward()
         case .globe:
             advanceToNextInputMode()
+        case .emoji:
+            break // the root view swaps in the emoji page
         case .shift, .mode:
             break // handled in the SwiftUI layer, which owns that state
         }
@@ -351,11 +354,13 @@ struct KeyboardRootView: View {
     /// document.
     var autoShift: () -> Bool
     var returnLabel: String
+    var needsGlobe: Bool
     var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
     @State private var shifted = true
+    @State private var showingEmoji = false
 
     // 226 rather than 214: the key rows now sit 12pt lower to leave the press
     // balloon somewhere to go. Without matching that here the bottom row would
@@ -365,27 +370,46 @@ struct KeyboardRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             AccessoryBarView(model: model)
-            KeyboardView(
-                mode: mode,
-                shifted: shifted,
-                returnLabel: returnLabel,
-                onKey: handle,
-                onPress: onPress,
-                onHoldBegin: onHoldBegin,
-                onHoldEnd: { cap in
-                    onHoldEnd(cap)
-                    // A held delete bypasses `handle`, so this is the only place
-                    // shift can be re-evaluated after one clears the field.
-                    shifted = autoShift()
-                },
-                onAlternate: { glyph in
-                    // Same reasoning: an alternate is inserted straight from the
-                    // gesture, so it never passes through `handle`.
-                    onAlternate(glyph)
-                    shifted = autoShift()
-                }
-            )
-            .frame(height: keyAreaHeight)
+
+            if showingEmoji {
+                EmojiPageView(
+                    onEmoji: { glyph in
+                        onAlternate(glyph)
+                        shifted = autoShift()
+                    },
+                    onBackspace: {
+                        onKey(.backspace)
+                        shifted = autoShift()
+                    },
+                    onLetters: { showingEmoji = false },
+                    onPress: { onPress(.character("")) }
+                )
+                .frame(height: keyAreaHeight)
+            } else {
+                KeyboardView(
+                    mode: mode,
+                    shifted: shifted,
+                    returnLabel: returnLabel,
+                    needsGlobe: needsGlobe,
+                    onKey: handle,
+                    onPress: onPress,
+                    onHoldBegin: onHoldBegin,
+                    onHoldEnd: { cap in
+                        onHoldEnd(cap)
+                        // A held delete bypasses `handle`, so this is the only
+                        // place shift can be re-evaluated after one clears the
+                        // field.
+                        shifted = autoShift()
+                    },
+                    onAlternate: { glyph in
+                        // Same reasoning: an alternate is inserted straight from
+                        // the gesture, so it never passes through `handle`.
+                        onAlternate(glyph)
+                        shifted = autoShift()
+                    }
+                )
+                .frame(height: keyAreaHeight)
+            }
         }
         .onAppear {
             // The field may already contain text — starting shifted regardless
@@ -407,6 +431,8 @@ struct KeyboardRootView: View {
         switch cap {
         case .shift:
             shifted.toggle()
+        case .emoji:
+            showingEmoji = true
         case .mode(let next):
             mode = next
             shifted = next == .letters ? autoShift() : false

@@ -12,6 +12,9 @@ struct KeyboardView: View {
     /// What the return key says in this field — "Send" in Messages, "Go" in
     /// Safari. Only the controller can see the host app's `returnKeyType`.
     var returnLabel: String = "return"
+    /// False when iOS draws its own keyboard switcher below us, which is the
+    /// usual case. See `KeyboardLayout.bottomRow`.
+    var needsGlobe: Bool = false
     var onKey: (KeyCap) -> Void
     var onPress: (KeyCap) -> Void
     var onHoldBegin: (KeyCap) -> Void
@@ -28,7 +31,7 @@ struct KeyboardView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let rows = KeyboardLayout.rows(for: mode, shifted: shifted)
+            let rows = KeyboardLayout.rows(for: mode, shifted: shifted, needsGlobe: needsGlobe)
             VStack(spacing: rowSpacing) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     let widths = row.map { width(for: $0, in: row, totalWidth: geo.size.width) }
