@@ -1,3 +1,4 @@
+import AudioToolbox
 import UIKit
 import SwiftUI
 import NibKit
@@ -106,12 +107,29 @@ final class KeyboardViewController: UIInputViewController {
     /// it, so there is nothing to gain from warming the engine.
     private func feedback(for cap: KeyCap) {
         if SharedSettings.shared.soundEnabled {
-            UIDevice.current.playInputClick()
+            AudioServicesPlaySystemSound(Self.clickSound(for: cap))
         }
 
         if SharedSettings.shared.hapticsEnabled, hasFullAccess {
             impact.impactOccurred(intensity: 0.65)
             impact.prepare()
+        }
+    }
+
+    /// The three sounds the system keyboard actually uses: a tap, a heavier
+    /// delete, and a duller modifier.
+    ///
+    /// `playInputClick()` is the documented route and it was being called, but
+    /// the system routes that request through the *input view* and asks it,
+    /// via `UIInputViewAudioFeedback`, whether clicks are wanted. Conforming
+    /// this controller did not put the conformance on the view the system
+    /// asks, so every call was discarded in silence. These are the sounds that
+    /// call would have played, requested directly.
+    private static func clickSound(for cap: KeyCap) -> SystemSoundID {
+        switch cap {
+        case .backspace: 1155
+        case .shift, .mode, .globe: 1156
+        default: 1104
         }
     }
 
@@ -250,15 +268,6 @@ final class KeyboardViewController: UIInputViewController {
             break // handled in the SwiftUI layer, which owns that state
         }
     }
-}
-
-// MARK: - Audio feedback
-
-/// Without this conformance `playInputClick()` is silently discarded: the
-/// system asks the input view whether it wants clicks, and the default answer
-/// is no. This is why the Sound toggle in Settings appeared to do nothing.
-extension KeyboardViewController: UIInputViewAudioFeedback {
-    var enableInputClicksWhenVisible: Bool { true }
 }
 
 // MARK: - KeyboardTextInterface

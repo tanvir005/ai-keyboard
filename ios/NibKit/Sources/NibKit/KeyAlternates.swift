@@ -90,6 +90,44 @@ public enum KeyAlternates {
         return min(max(raw, 0), count - 1)
     }
 
+    /// Whether a key opens its row leftward.
+    ///
+    /// Keys past the halfway mark do, so the row grows toward the middle of the
+    /// board rather than into the edge it is already near.
+    public static func opensLeftward(keyCenterX: CGFloat, boardWidth: CGFloat) -> Bool {
+        keyCenterX > boardWidth / 2
+    }
+
+    /// Where the row's left edge sits, in the board's coordinate space.
+    ///
+    /// The point of this is to keep the *base* glyph over the key that opened
+    /// the row, so the highlighted item starts under the finger. Centring the
+    /// row and clamping it — the obvious approach — puts the base glyph at
+    /// whichever end got pushed away, which on a right-hand key is nowhere near
+    /// the thumb that opened it.
+    ///
+    /// The row is then pushed back inside the board, because an item hanging
+    /// off the edge is clipped, and a finger cannot drag to something it cannot
+    /// see.
+    public static func rowLeft(
+        keyCenterX: CGFloat,
+        keyWidth: CGFloat,
+        rowWidth: CGFloat,
+        boardWidth: CGFloat,
+        boardInset: CGFloat,
+        padding: CGFloat,
+        opensLeftward: Bool
+    ) -> CGFloat {
+        let desired = opensLeftward
+            ? keyCenterX + keyWidth / 2 + padding - rowWidth
+            : keyCenterX - keyWidth / 2 - padding
+
+        let lowerBound = boardInset
+        let upperBound = boardWidth - boardInset - rowWidth
+        guard upperBound > lowerBound else { return lowerBound }
+        return min(max(desired, lowerBound), upperBound)
+    }
+
     /// Every base character that opens a row. Test-facing.
     public static var keysWithAlternates: [String] {
         table.keys.sorted()

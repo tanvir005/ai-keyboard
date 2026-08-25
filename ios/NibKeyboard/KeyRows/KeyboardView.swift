@@ -223,7 +223,7 @@ struct KeyButton: View {
                 LongPressGesture(minimumDuration: 0.45, maximumDistance: 20)
                     .onEnded { _ in
                         guard !alternates.isEmpty, !cap.repeatsWhenHeld else { return }
-                        selectedAlternate = 0
+                        selectedAlternate = baseAlternateIndex
                         showingAlternates = true
                     }
             )
@@ -238,9 +238,21 @@ struct KeyButton: View {
 
     // MARK: - Alternates
 
+    private var opensLeftward: Bool {
+        KeyAlternates.opensLeftward(keyCenterX: keyCenterX, boardWidth: boardWidth)
+    }
+
+    /// Reversed when the row opens leftward, so the base glyph ends up at the
+    /// end nearest its own key rather than stranded at the far side.
     private var alternates: [String] {
         guard case .character(let character) = cap else { return [] }
-        return KeyAlternates.row(for: character)
+        let row = KeyAlternates.row(for: character)
+        return opensLeftward ? row.reversed() : row
+    }
+
+    /// Where the finger starts: on the glyph already being typed.
+    private var baseAlternateIndex: Int {
+        opensLeftward ? max(alternates.count - 1, 0) : 0
     }
 
     private var alternatesWidth: CGFloat {
@@ -251,26 +263,29 @@ struct KeyButton: View {
         Self.alternateItemHeight + Self.alternatePadding * 2 + 4
     }
 
-    /// Centred on the key, then pushed back inside the board's edges — a row
-    /// hanging off the side would be clipped, and a finger cannot drag to
-    /// something it cannot see.
+    /// Board-space left edge, anchored so the base glyph sits over its key.
+    private var alternatesLeft: CGFloat {
+        KeyAlternates.rowLeft(
+            keyCenterX: keyCenterX,
+            keyWidth: width,
+            rowWidth: alternatesWidth,
+            boardWidth: boardWidth,
+            boardInset: boardInset,
+            padding: Self.alternatePadding,
+            opensLeftward: opensLeftward
+        )
+    }
+
+    /// The overlay is centred on the key, so this is the correction that moves
+    /// it to `alternatesLeft`.
     private var alternatesOffsetX: CGFloat {
-        let half = alternatesWidth / 2
-        let lowerBound = boardInset
-        let upperBound = boardWidth - boardInset - alternatesWidth
-
-        // A row too wide for the board at all: pin left rather than invert.
-        let clamped = upperBound < lowerBound
-            ? lowerBound
-            : min(max(keyCenterX - half, lowerBound), upperBound)
-
-        return clamped + half - keyCenterX
+        alternatesLeft + alternatesWidth / 2 - keyCenterX
     }
 
     /// The left edge of the first glyph, in the key's own coordinate space —
     /// which is the space `DragGesture` reports touches in.
     private var alternatesFirstItemLeft: CGFloat {
-        width / 2 + alternatesOffsetX - alternatesWidth / 2 + Self.alternatePadding
+        alternatesLeft + Self.alternatePadding - (keyCenterX - width / 2)
     }
 
     private var alternatesRow: some View {

@@ -119,6 +119,86 @@ final class KeyAlternatesTests: XCTestCase {
         }
     }
 
+    // MARK: - Which way the row opens
+
+    func testKeysPastHalfwayOpenLeftward() {
+        XCTAssertFalse(KeyAlternates.opensLeftward(keyCenterX: 40, boardWidth: 400))
+        XCTAssertFalse(KeyAlternates.opensLeftward(keyCenterX: 199, boardWidth: 400))
+        XCTAssertTrue(KeyAlternates.opensLeftward(keyCenterX: 201, boardWidth: 400))
+        XCTAssertTrue(KeyAlternates.opensLeftward(keyCenterX: 380, boardWidth: 400))
+    }
+
+    /// The whole point of the anchoring: whichever way the row opens, the glyph
+    /// the finger is already on must be the one under it.
+    func testBaseGlyphLandsOverTheKeyThatOpenedTheRow() {
+        let keyWidth: CGFloat = 33
+        let itemWidth: CGFloat = 38
+        let padding: CGFloat = 4
+
+        for (centerX, leftward) in [(60.0, false), (330.0, true)] as [(CGFloat, Bool)] {
+            let count = 5
+            let rowWidth = itemWidth * CGFloat(count) + padding * 2
+            let left = KeyAlternates.rowLeft(
+                keyCenterX: centerX,
+                keyWidth: keyWidth,
+                rowWidth: rowWidth,
+                boardWidth: 393,
+                boardInset: 6,
+                padding: padding,
+                opensLeftward: leftward
+            )
+
+            // Reversed for a leftward row, so the base sits at the far end.
+            let baseIndex = leftward ? count - 1 : 0
+            let baseCentre = left + padding + itemWidth * (CGFloat(baseIndex) + 0.5)
+
+            XCTAssertEqual(
+                baseCentre, centerX, accuracy: itemWidth / 2,
+                "base glyph drifted off its key (leftward: \(leftward))"
+            )
+        }
+    }
+
+    func testRowIsPushedBackInsideTheBoard() {
+        let boardWidth: CGFloat = 393
+        let inset: CGFloat = 6
+        let rowWidth: CGFloat = 350
+
+        for centerX in stride(from: CGFloat(10), through: 383, by: 10) {
+            for leftward in [true, false] {
+                let left = KeyAlternates.rowLeft(
+                    keyCenterX: centerX,
+                    keyWidth: 33,
+                    rowWidth: rowWidth,
+                    boardWidth: boardWidth,
+                    boardInset: inset,
+                    padding: 4,
+                    opensLeftward: leftward
+                )
+                XCTAssertGreaterThanOrEqual(left, inset, "row ran off the left edge")
+                XCTAssertLessThanOrEqual(
+                    left + rowWidth, boardWidth - inset,
+                    "row ran off the right edge"
+                )
+            }
+        }
+    }
+
+    /// Degenerate but reachable on a very narrow device: pin left rather than
+    /// invert the clamp and land somewhere nonsensical.
+    func testRowWiderThanTheBoardPinsToTheLeftInset() {
+        let left = KeyAlternates.rowLeft(
+            keyCenterX: 200,
+            keyWidth: 33,
+            rowWidth: 900,
+            boardWidth: 393,
+            boardInset: 6,
+            padding: 4,
+            opensLeftward: true
+        )
+        XCTAssertEqual(left, 6)
+    }
+
     private func index(
         at x: CGFloat,
         _ left: CGFloat,
