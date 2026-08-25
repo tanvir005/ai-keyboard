@@ -37,6 +37,14 @@ final class KeyboardViewController: UIInputViewController {
     private var deleteTimer: Timer?
     private var deleteTicks = 0
 
+    /// Two spaces become ". " only when the second follows the first quickly.
+    /// Timing it rather than reading the document alone leaves a deliberate
+    /// double space — someone lining text up — intact.
+    private static let doubleSpaceWindow: TimeInterval = 0.6
+    private var lastSpaceAt: Date?
+
+    private let spelling = SpellSuggestions()
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -49,6 +57,10 @@ final class KeyboardViewController: UIInputViewController {
             onHoldBegin: { [weak self] in self?.beginRepeating($0) },
             onHoldEnd: { [weak self] _ in self?.cancelRepeating() },
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
+            returnLabel: returnLabel(),
+            needsGlobe: needsInputModeSwitchKey,
+            suggestions: [],
+            onSuggestion: { [weak self] in self?.replaceCurrentWord(with: $0) },
             onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
@@ -67,7 +79,7 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        let height = view.heightAnchor.constraint(equalToConstant: 270)
+        let height = view.heightAnchor.constraint(equalToConstant: 308)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -83,6 +95,52 @@ final class KeyboardViewController: UIInputViewController {
         if SharedSettings.shared.hapticsEnabled, hasFullAccess {
             impact.prepare()
         }
+
+        host.rootView.returnLabel = returnLabel()
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        documentChanged()
+    }
+
+    /// Everything that has to be recomputed when the document moves under us.
+    ///
+    /// Called from `textDidChange` and after our own edits, because the two do
+    /// not reliably cover each other — a caret moved by the user arrives only
+    /// through the first, and the ordering of the second is ours to control.
+    private func documentChanged() {
+        // The keyboard outlives the field it was opened for: moving from a chat
+        // box to a search box has to relabel return, or it keeps promising to
+        // send something.
+        let label = returnLabel()
+        if host.rootView.returnLabel != label {
+            host.rootView.returnLabel = label
+        }
+
+        let words = spelling.suggestions(before: textDocumentProxy.documentContextBeforeInput)
+        if host.rootView.suggestions != words {
+            host.rootView.suggestions = words
+        }
+    }
+
+    /// Swaps the word under the caret for a tapped suggestion.
+    ///
+    /// Deletes by `Character` count so one call per grapheme cluster is made —
+    /// the same reason `deleteWordBackward` counts that way.
+    private func replaceCurrentWord(with replacement: String) {
+        guard
+            let before = textDocumentProxy.documentContextBeforeInput,
+            let word = CurrentWord.trailing(in: before)
+        else { return }
+
+        for _ in 0 ..< word.count {
+            textDocumentProxy.deleteBackward()
+        }
+        textDocumentProxy.insertText(replacement)
+
+        feedback(for: .character(replacement))
+        documentChanged()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -173,6 +231,9 @@ final class KeyboardViewController: UIInputViewController {
         deleteTimer?.invalidate()
         deleteTimer = nil
         deleteTicks = 0
+        // Once, on release, rather than on every tick: running the spell
+        // checker ten times a second through a hold is work nobody sees.
+        documentChanged()
     }
 
     /// Deletes back over any trailing spaces and then the word before them.
@@ -208,6 +269,41 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// Turns a quick second space into ". ", and reports whether it did.
+    ///
+    /// Returns false for every case the rule does not cover, leaving the caller
+    /// to insert an ordinary space — see `TypingRules` for which those are.
+    private func promoteDoubleSpace() -> Bool {
+        guard
+            let last = lastSpaceAt,
+            Date().timeIntervalSince(last) < Self.doubleSpaceWindow,
+            let before = textDocumentProxy.documentContextBeforeInput,
+            TypingRules.shouldPromoteSpaceToSentenceBreak(before: before)
+        else { return false }
+
+        textDocumentProxy.deleteBackward()
+        textDocumentProxy.insertText(". ")
+        // Cleared so a third space types a space rather than stacking stops.
+        lastSpaceAt = nil
+        return true
+    }
+
+    /// What the return key should say for the field being typed into.
+    private func returnLabel() -> String {
+        switch textDocumentProxy.returnKeyType {
+        case .go: "Go"
+        case .google, .yahoo, .search: "Search"
+        case .join: "Join"
+        case .next: "Next"
+        case .route: "Route"
+        case .send: "Send"
+        case .done: "Done"
+        case .emergencyCall: "Call"
+        case .continue: "Continue"
+        default: "return"
+        }
+    }
+
     /// Inserts the glyph chosen from a held key's alternates row.
     ///
     /// Separate from `handle` because the choice is made by the gesture rather
@@ -216,6 +312,7 @@ final class KeyboardViewController: UIInputViewController {
     private func insertAlternate(_ glyph: String) {
         textDocumentProxy.insertText(glyph)
         feedback(for: .character(glyph))
+        documentChanged()
     }
 
     // MARK: - Auto-capitalisation
@@ -257,16 +354,22 @@ final class KeyboardViewController: UIInputViewController {
         case .character(let c):
             textDocumentProxy.insertText(c)
         case .space:
+            if promoteDoubleSpace() { break }
             textDocumentProxy.insertText(" ")
+            lastSpaceAt = Date()
         case .newline:
             textDocumentProxy.insertText("\n")
         case .backspace:
             textDocumentProxy.deleteBackward()
         case .globe:
             advanceToNextInputMode()
+        case .emoji:
+            break // the root view swaps in the emoji page
         case .shift, .mode:
             break // handled in the SwiftUI layer, which owns that state
         }
+
+        documentChanged()
     }
 }
 
@@ -292,11 +395,16 @@ struct KeyboardRootView: View {
     /// The view cannot answer this itself — only the controller can see the
     /// document.
     var autoShift: () -> Bool
+    var returnLabel: String
+    var needsGlobe: Bool
+    var suggestions: [String]
+    var onSuggestion: (String) -> Void
     var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
     @State private var shifted = true
+    @State private var showingEmoji = false
 
     // 226 rather than 214: the key rows now sit 12pt lower to leave the press
     // balloon somewhere to go. Without matching that here the bottom row would
@@ -305,27 +413,48 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
             AccessoryBarView(model: model)
-            KeyboardView(
-                mode: mode,
-                shifted: shifted,
-                onKey: handle,
-                onPress: onPress,
-                onHoldBegin: onHoldBegin,
-                onHoldEnd: { cap in
-                    onHoldEnd(cap)
-                    // A held delete bypasses `handle`, so this is the only place
-                    // shift can be re-evaluated after one clears the field.
-                    shifted = autoShift()
-                },
-                onAlternate: { glyph in
-                    // Same reasoning: an alternate is inserted straight from the
-                    // gesture, so it never passes through `handle`.
-                    onAlternate(glyph)
-                    shifted = autoShift()
-                }
-            )
-            .frame(height: keyAreaHeight)
+
+            if showingEmoji {
+                EmojiPageView(
+                    onEmoji: { glyph in
+                        onAlternate(glyph)
+                        shifted = autoShift()
+                    },
+                    onBackspace: {
+                        onKey(.backspace)
+                        shifted = autoShift()
+                    },
+                    onLetters: { showingEmoji = false },
+                    onPress: { onPress(.character("")) }
+                )
+                .frame(height: keyAreaHeight)
+            } else {
+                KeyboardView(
+                    mode: mode,
+                    shifted: shifted,
+                    returnLabel: returnLabel,
+                    needsGlobe: needsGlobe,
+                    onKey: handle,
+                    onPress: onPress,
+                    onHoldBegin: onHoldBegin,
+                    onHoldEnd: { cap in
+                        onHoldEnd(cap)
+                        // A held delete bypasses `handle`, so this is the only
+                        // place shift can be re-evaluated after one clears the
+                        // field.
+                        shifted = autoShift()
+                    },
+                    onAlternate: { glyph in
+                        // Same reasoning: an alternate is inserted straight from
+                        // the gesture, so it never passes through `handle`.
+                        onAlternate(glyph)
+                        shifted = autoShift()
+                    }
+                )
+                .frame(height: keyAreaHeight)
+            }
         }
         .onAppear {
             // The field may already contain text — starting shifted regardless
@@ -347,6 +476,8 @@ struct KeyboardRootView: View {
         switch cap {
         case .shift:
             shifted.toggle()
+        case .emoji:
+            showingEmoji = true
         case .mode(let next):
             mode = next
             shifted = next == .letters ? autoShift() : false

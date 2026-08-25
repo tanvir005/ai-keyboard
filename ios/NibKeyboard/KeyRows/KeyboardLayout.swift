@@ -9,6 +9,7 @@ enum KeyCap: Hashable {
     case space
     case newline
     case globe
+    case emoji
 
     /// Wide keys use the darker fill from the mockup.
     var isFunction: Bool {
@@ -27,6 +28,7 @@ enum KeyCap: Hashable {
         case .space: "space"
         case .newline: "return"
         case .globe: "🌐"
+        case .emoji: "😀"
         }
     }
 
@@ -42,7 +44,7 @@ enum KeyCap: Hashable {
         switch self {
         case .space: 5
         case .shift, .backspace: 1.5
-        case .mode, .globe: 1.25
+        case .mode, .globe, .emoji: 1.25
         case .newline: 2
         case .character: 1
         }
@@ -63,15 +65,15 @@ enum KeyboardMode {
 /// so the fundamentals that ship must be solid before the surface grows.
 enum KeyboardLayout {
 
-    static func rows(for mode: KeyboardMode, shifted: Bool) -> [[KeyCap]] {
+    static func rows(for mode: KeyboardMode, shifted: Bool, needsGlobe: Bool) -> [[KeyCap]] {
         switch mode {
-        case .letters: letters(shifted: shifted)
-        case .numbers: numbers()
-        case .symbols: symbols()
+        case .letters: letters(shifted: shifted, needsGlobe: needsGlobe)
+        case .numbers: numbers(needsGlobe: needsGlobe)
+        case .symbols: symbols(needsGlobe: needsGlobe)
         }
     }
 
-    private static func letters(shifted: Bool) -> [[KeyCap]] {
+    private static func letters(shifted: Bool, needsGlobe: Bool) -> [[KeyCap]] {
         let rows = [
             ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
             ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
@@ -79,33 +81,43 @@ enum KeyboardLayout {
         ]
         var result = rows.map { $0.map { KeyCap.character(shifted ? $0.uppercased() : $0) } }
         result[2] = [.shift] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .numbers))
+        result.append(bottomRow(mode: .numbers, needsGlobe: needsGlobe))
         return result
     }
 
-    private static func numbers() -> [[KeyCap]] {
+    private static func numbers(needsGlobe: Bool) -> [[KeyCap]] {
         var result: [[KeyCap]] = [
             ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map { KeyCap.character($0) },
             ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""].map { KeyCap.character($0) },
             [".", ",", "?", "!", "'"].map { KeyCap.character($0) },
         ]
         result[2] = [.mode(.symbols)] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .letters))
+        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe))
         return result
     }
 
-    private static func symbols() -> [[KeyCap]] {
+    private static func symbols(needsGlobe: Bool) -> [[KeyCap]] {
         var result: [[KeyCap]] = [
             ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="].map { KeyCap.character($0) },
             ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"].map { KeyCap.character($0) },
             [".", ",", "?", "!", "'"].map { KeyCap.character($0) },
         ]
         result[2] = [.mode(.numbers)] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .letters))
+        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe))
         return result
     }
 
-    private static func bottomRow(mode: KeyboardMode) -> [KeyCap] {
-        [.mode(mode), .globe, .space, .newline]
+    /// The globe only appears when the system says it has to.
+    ///
+    /// On a phone with more than one keyboard installed, iOS draws its own
+    /// switcher below us and `needsInputModeSwitchKey` is false — a second
+    /// globe would be a duplicate spending a key's width. The emoji key takes
+    /// that slot instead, which is where both stock keyboards put it and where
+    /// people's thumbs go looking.
+    private static func bottomRow(mode: KeyboardMode, needsGlobe: Bool) -> [KeyCap] {
+        var row: [KeyCap] = [.mode(mode), .emoji]
+        if needsGlobe { row.append(.globe) }
+        row.append(contentsOf: [.space, .newline])
+        return row
     }
 }
