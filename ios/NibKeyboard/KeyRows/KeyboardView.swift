@@ -11,6 +11,8 @@ struct KeyboardView: View {
     let shifted: Bool
     var onKey: (KeyCap) -> Void
     var onPress: (KeyCap) -> Void
+    var onHoldBegin: (KeyCap) -> Void
+    var onHoldEnd: (KeyCap) -> Void
 
     private let rowSpacing: CGFloat = 8
     private let keySpacing: CGFloat = 5
@@ -28,6 +30,8 @@ struct KeyboardView: View {
                                 width: width(for: cap, in: row, totalWidth: geo.size.width),
                                 previewAnchor: previewAnchor(at: index, in: row),
                                 onPress: { onPress(cap) },
+                                onHoldBegin: { onHoldBegin(cap) },
+                                onHoldEnd: { onHoldEnd(cap) },
                                 action: { onKey(cap) }
                             )
                         }
@@ -71,6 +75,8 @@ struct KeyButton: View {
     let width: CGFloat
     var previewAnchor: Alignment = .top
     var onPress: () -> Void
+    var onHoldBegin: () -> Void
+    var onHoldEnd: () -> Void
     var action: () -> Void
 
     static let height: CGFloat = 42
@@ -110,10 +116,21 @@ struct KeyButton: View {
                         guard !isPressed else { return }
                         isPressed = true
                         onPress()
+                        // A repeating key has to act on touch-down: waiting for
+                        // release means a hold does nothing at all until you
+                        // let go, which is exactly how delete used to behave.
+                        if cap.repeatsWhenHeld {
+                            action()
+                            onHoldBegin()
+                        }
                     }
                     .onEnded { _ in
                         isPressed = false
-                        action()
+                        if cap.repeatsWhenHeld {
+                            onHoldEnd()
+                        } else {
+                            action()
+                        }
                     }
             )
     }
