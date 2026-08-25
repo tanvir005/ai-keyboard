@@ -32,3 +32,9 @@ Package.resolved
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Local reference material ---
+# Screenshots and photos dropped in while testing on a device. Useful in the
+# moment, not worth carrying in history — the concept mockups and the QA
+# checklist in docs/ are the durable record.
+refimg/
