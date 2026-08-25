@@ -13,44 +13,98 @@ struct KeyboardView: View {
     var onPress: (KeyCap) -> Void
     var onHoldBegin: (KeyCap) -> Void
     var onHoldEnd: (KeyCap) -> Void
+    var onAlternate: (String) -> Void
 
     private let rowSpacing: CGFloat = 8
-    private let keySpacing: CGFloat = 5
+    private let keySpacing: CGFloat = 6
+
+    /// Breathing room at the board's edges. Most of why the layout read as
+    /// having none was the nine-key row running flush to both sides — see
+    /// `isInsetRow`.
+    private let sideInset: CGFloat = 6
 
     var body: some View {
         GeometryReader { geo in
             let rows = KeyboardLayout.rows(for: mode, shifted: shifted)
             VStack(spacing: rowSpacing) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    let widths = row.map { width(for: $0, in: row, totalWidth: geo.size.width) }
+                    // Rows are centred by the VStack, so the inset row's origin
+                    // is not the board's edge — the alternates row has to be
+                    // placed against the board, not against the key.
+                    let rowOrigin = (geo.size.width - rowWidth(widths)) / 2
+
                     HStack(spacing: keySpacing) {
                         ForEach(Array(row.enumerated()), id: \.offset) { index, cap in
                             KeyButton(
                                 cap: cap,
                                 isActive: cap == .shift && shifted,
-                                width: width(for: cap, in: row, totalWidth: geo.size.width),
+                                width: widths[index],
                                 previewAnchor: previewAnchor(at: index, in: row),
+                                keyCenterX: centerX(at: index, widths: widths, rowOrigin: rowOrigin),
+                                boardWidth: geo.size.width,
+                                boardInset: sideInset,
                                 onPress: { onPress(cap) },
                                 onHoldBegin: { onHoldBegin(cap) },
                                 onHoldEnd: { onHoldEnd(cap) },
+                                onAlternate: onAlternate,
                                 action: { onKey(cap) }
                             )
                         }
                     }
                 }
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 6)
+            .padding(.horizontal, sideInset)
+            // Asymmetric on purpose: the top row's balloon is drawn upward into
+            // this gap, and the input view clips at its own edge. Without the
+            // headroom the balloon cannot grow to the size a thumb-covered key
+            // actually needs.
+            .padding(.top, 18)
+            .padding(.bottom, 6)
         }
     }
 
     /// Distributes the row's width by each key's relative units, so wide keys
     /// (shift, space, return) stay proportional at any screen size.
     private func width(for cap: KeyCap, in row: [KeyCap], totalWidth: CGFloat) -> CGFloat {
+        let available = totalWidth - sideInset * 2
+        guard available > 0 else { return 0 }
+
+        // The inset row borrows the ten-key row's key width rather than
+        // computing its own. The half key it then does not use falls either
+        // side as the indent, and its letters line up with the row above.
+        if isInsetRow(row) {
+            return max((available - keySpacing * 9) / 10, 0)
+        }
+
         let totalUnits = row.reduce(0) { $0 + $1.widthUnits }
-        let spacing = keySpacing * CGFloat(row.count - 1)
-        let available = totalWidth - spacing - 8
-        guard totalUnits > 0, available > 0 else { return 0 }
-        return available * (cap.widthUnits / totalUnits)
+        let usable = available - keySpacing * CGFloat(row.count - 1)
+        guard totalUnits > 0, usable > 0 else { return 0 }
+        return usable * (cap.widthUnits / totalUnits)
+    }
+
+    private func rowWidth(_ widths: [CGFloat]) -> CGFloat {
+        widths.reduce(0, +) + keySpacing * CGFloat(max(widths.count - 1, 0))
+    }
+
+    /// A key's centre in the board's coordinate space, which is what the
+    /// alternates row needs in order to clamp itself inside the edges.
+    private func centerX(at index: Int, widths: [CGFloat], rowOrigin: CGFloat) -> CGFloat {
+        let preceding = widths.prefix(index).reduce(0, +) + keySpacing * CGFloat(index)
+        return rowOrigin + preceding + widths[index] / 2
+    }
+
+    /// `asdfghjkl` — the only nine-letter row on any page.
+    ///
+    /// It used to stretch across the full width, making its keys ~11% wider
+    /// than the ten above and lining up with nothing. Every other row, function
+    /// keys included, still fills the board.
+    private func isInsetRow(_ row: [KeyCap]) -> Bool {
+        guard row.count == 9 else { return false }
+        return row.allSatisfy {
+            if case .character = $0 { return true }
+            return false
+        }
     }
 
     /// The balloon is wider than the key it belongs to, so the outermost keys
@@ -74,14 +128,23 @@ struct KeyButton: View {
     var isActive: Bool = false
     let width: CGFloat
     var previewAnchor: Alignment = .top
+    var keyCenterX: CGFloat = 0
+    var boardWidth: CGFloat = 0
+    var boardInset: CGFloat = 6
     var onPress: () -> Void
     var onHoldBegin: () -> Void
     var onHoldEnd: () -> Void
+    var onAlternate: (String) -> Void
     var action: () -> Void
 
     static let height: CGFloat = 42
+    static let alternateItemWidth: CGFloat = 38
+    static let alternateItemHeight: CGFloat = 46
+    static let alternatePadding: CGFloat = 4
 
     @State private var isPressed = false
+    @State private var showingAlternates = false
+    @State private var selectedAlternate = 0
 
     var body: some View {
         Text(cap.label)
@@ -103,34 +166,65 @@ struct KeyButton: View {
             }
             .scaleEffect(isPressed && !showsBalloon ? 0.96 : 1)
             .overlay(alignment: previewAnchor) {
-                if isPressed, showsBalloon {
+                if isPressed, showsBalloon, !showingAlternates {
                     KeyPreview(label: cap.label, keyWidth: width)
                         .offset(y: -KeyPreview.lift)
+                }
+            }
+            .overlay(alignment: .top) {
+                if showingAlternates {
+                    alternatesRow
+                        .offset(x: alternatesOffsetX, y: -alternatesLift)
                 }
             }
             .zIndex(isPressed ? 1 : 0)
             .animation(.easeOut(duration: 0.07), value: isPressed)
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard !isPressed else { return }
-                        isPressed = true
-                        onPress()
-                        // A repeating key has to act on touch-down: waiting for
-                        // release means a hold does nothing at all until you
-                        // let go, which is exactly how delete used to behave.
-                        if cap.repeatsWhenHeld {
-                            action()
-                            onHoldBegin()
+                    .onChanged { value in
+                        if !isPressed {
+                            isPressed = true
+                            onPress()
+                            // A repeating key has to act on touch-down: waiting
+                            // for release means a hold does nothing at all until
+                            // you let go, which is how delete used to behave.
+                            if cap.repeatsWhenHeld {
+                                action()
+                                onHoldBegin()
+                            }
                         }
+
+                        guard showingAlternates else { return }
+                        selectedAlternate = KeyAlternates.index(
+                            forX: value.location.x,
+                            rowLeft: alternatesFirstItemLeft,
+                            itemWidth: Self.alternateItemWidth,
+                            count: alternates.count
+                        )
                     }
                     .onEnded { _ in
                         isPressed = false
-                        if cap.repeatsWhenHeld {
+
+                        if showingAlternates {
+                            let picked = alternates[min(selectedAlternate, alternates.count - 1)]
+                            showingAlternates = false
+                            onAlternate(picked)
+                        } else if cap.repeatsWhenHeld {
                             onHoldEnd()
                         } else {
                             action()
                         }
+                    }
+            )
+            // Simultaneous rather than sequenced: the drag has to keep tracking
+            // the finger once the row is open, so it cannot be a `.sequenced`
+            // chain that hands control over.
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.45, maximumDistance: 20)
+                    .onEnded { _ in
+                        guard !alternates.isEmpty, !cap.repeatsWhenHeld else { return }
+                        selectedAlternate = 0
+                        showingAlternates = true
                     }
             )
     }
@@ -140,6 +234,69 @@ struct KeyButton: View {
     private var showsBalloon: Bool {
         if case .character = cap { return true }
         return false
+    }
+
+    // MARK: - Alternates
+
+    private var alternates: [String] {
+        guard case .character(let character) = cap else { return [] }
+        return KeyAlternates.row(for: character)
+    }
+
+    private var alternatesWidth: CGFloat {
+        Self.alternateItemWidth * CGFloat(alternates.count) + Self.alternatePadding * 2
+    }
+
+    private var alternatesLift: CGFloat {
+        Self.alternateItemHeight + Self.alternatePadding * 2 + 4
+    }
+
+    /// Centred on the key, then pushed back inside the board's edges — a row
+    /// hanging off the side would be clipped, and a finger cannot drag to
+    /// something it cannot see.
+    private var alternatesOffsetX: CGFloat {
+        let half = alternatesWidth / 2
+        let lowerBound = boardInset
+        let upperBound = boardWidth - boardInset - alternatesWidth
+
+        // A row too wide for the board at all: pin left rather than invert.
+        let clamped = upperBound < lowerBound
+            ? lowerBound
+            : min(max(keyCenterX - half, lowerBound), upperBound)
+
+        return clamped + half - keyCenterX
+    }
+
+    /// The left edge of the first glyph, in the key's own coordinate space —
+    /// which is the space `DragGesture` reports touches in.
+    private var alternatesFirstItemLeft: CGFloat {
+        width / 2 + alternatesOffsetX - alternatesWidth / 2 + Self.alternatePadding
+    }
+
+    private var alternatesRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(alternates.enumerated()), id: \.offset) { index, glyph in
+                Text(glyph)
+                    .font(.system(size: 22))
+                    .foregroundStyle(
+                        index == selectedAlternate ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink
+                    )
+                    .frame(width: Self.alternateItemWidth, height: Self.alternateItemHeight)
+                    .background {
+                        if index == selectedAlternate {
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(NibStyle.Palette.red)
+                        }
+                    }
+            }
+        }
+        .padding(Self.alternatePadding)
+        .background {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(NibStyle.Palette.key)
+                .shadow(color: .black.opacity(0.22), radius: 4, y: 2)
+        }
+        .allowsHitTesting(false)
     }
 
     private var fill: Color {
@@ -161,14 +318,14 @@ struct KeyButton: View {
 ///
 /// Apple draws theirs above the keyboard's top edge, over the host app. An
 /// extension cannot: the input view clips at its own bounds. So this is sized
-/// to fit *inside* the keyboard (48pt, against the 50pt of toolbar and padding
-/// above the top key row), which is why a top-row balloon briefly overlaps the
-/// tool chips. That overlap is the cost of staying inside the bounds we have.
+/// to fit *inside* the keyboard — 56pt against the 62pt of toolbar and top
+/// padding above the first key row — which is why a top-row balloon briefly
+/// overlaps the tool chips. That overlap is the cost of the bounds we have.
 struct KeyPreview: View {
     let label: String
     let keyWidth: CGFloat
 
-    static let balloonHeight: CGFloat = 38
+    static let balloonHeight: CGFloat = 46
     static let neckHeight: CGFloat = 10
 
     /// How far above its key the balloon sits. The neck is drawn slightly
@@ -176,16 +333,19 @@ struct KeyPreview: View {
     /// seam.
     static var lift: CGFloat { balloonHeight + neckHeight }
 
-    private var balloonWidth: CGFloat { max(keyWidth + 16, 40) }
+    /// Half a key wider on each side, which is roughly the stock keyboard's
+    /// proportion. The floor matters on the symbols page, where a narrow key
+    /// would otherwise get a balloon too small to read at a glance.
+    private var balloonWidth: CGFloat { max(keyWidth * 1.5, 46) }
 
     var body: some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.system(size: 26, weight: .regular))
+                .font(.system(size: 32, weight: .regular))
                 .foregroundStyle(NibStyle.Palette.ink)
                 .frame(width: balloonWidth, height: Self.balloonHeight)
                 .background {
-                    RoundedRectangle(cornerRadius: 7)
+                    RoundedRectangle(cornerRadius: 9)
                         .fill(NibStyle.Palette.key)
                         .shadow(color: .black.opacity(0.22), radius: 3, y: 2)
                 }
