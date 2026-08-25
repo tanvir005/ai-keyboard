@@ -500,7 +500,14 @@ struct KeyboardRootView: View {
         case .mode(let next):
             mode = next
             shifted = next == .letters ? autoShift() : false
-        case .character, .space, .newline, .backspace:
+        case .space, .newline:
+            onKey(cap)
+            // A break ends the run of numbers or symbols the page was switched
+            // for. The stock keyboard returns here on its own, and without it
+            // every figure typed mid-sentence costs a second trip back to ABC.
+            mode = .letters
+            shifted = autoShift()
+        case .character, .backspace:
             onKey(cap)
             // Auto-unshift after a capital, and auto-shift again at the start of
             // the next sentence — one rule covers both, because it asks where
