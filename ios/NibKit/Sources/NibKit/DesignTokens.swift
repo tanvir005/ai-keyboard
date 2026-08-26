@@ -62,18 +62,14 @@ public enum NibStyle {
         // no longer carries the kraft identity, which now lives in the app and
         // in the accent. That is the trade, made deliberately.
         //
-        // Named from the system palette rather than mixed here. A hand-picked
-        // hex cannot stay matched: the first attempt was a bluish grey against
-        // the bar's neutral one and the seam was plain on a device. Apple has
-        // also changed these greys between releases, so a frozen value drifts
-        // even if it starts right. Naming the colour tracks whatever the system
-        // is using today.
-        public static let keyboardBackground = systemGray5
-
-        /// Behind the tool row and the suggestion strip — the same grey as the
-        /// board, so the whole keyboard reads as one surface.
-        public static let keyboardAccessory = systemGray5
-
+        // There is no board colour any more. Two attempts at matching the strip
+        // iOS draws below the keyboard failed for the same reason: that strip is
+        // not a colour at all, it is a translucent material sampling whatever is
+        // behind it. The keyboard asks for the same material instead — see
+        // `KeyboardViewController.loadView` — so nothing here paints the board.
+        //
+        // What is left are the things that sit *on* that material and must stay
+        // opaque, because a key has to read as an object rather than a hole.
         public static let key = systemKey
         public static let keyWide = systemGray4
 
