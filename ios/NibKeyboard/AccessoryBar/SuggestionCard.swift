@@ -18,10 +18,10 @@ struct SuggestionCard: View {
             HStack(spacing: 6) {
                 Text(label)
                     .font(NibStyle.Typography.sectionLabel)
-                    .foregroundStyle(NibStyle.Palette.inkFaint)
+                    .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.5))
                 Text("↳ tap to insert")
                     .font(NibStyle.Typography.body(11))
-                    .foregroundStyle(NibStyle.Palette.inkFaint)
+                    .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.5))
                 Spacer()
                 Button(action: onRegenerate) {
                     Image(systemName: "arrow.clockwise")
@@ -40,14 +40,14 @@ struct SuggestionCard: View {
                         Button { onAccept(suggestion) } label: {
                             Text(suggestion)
                                 .font(NibStyle.Typography.body(14))
-                                .foregroundStyle(NibStyle.Palette.ink)
+                                .foregroundStyle(NibStyle.Palette.keyLabel)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 11)
                                 .padding(.vertical, 9)
                                 .background {
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(NibStyle.Palette.paper)
+                                        .fill(NibStyle.Palette.key)
                                         .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
                                 }
                         }

@@ -17,7 +17,7 @@ struct AccessoryBarView: View {
                 ToolChipRow(model: model)
             }
         }
-        .background(NibStyle.Palette.surface)
+        .background(NibStyle.Palette.keyboardAccessory)
     }
 
     // MARK: - Result
@@ -32,7 +32,7 @@ struct AccessoryBarView: View {
                 ProgressView().controlSize(.small)
                 Text("Nib is thinking…")
                     .font(NibStyle.Typography.body(13))
-                    .foregroundStyle(NibStyle.Palette.inkFaint)
+                    .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.5))
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -44,7 +44,7 @@ struct AccessoryBarView: View {
                     .foregroundStyle(NibStyle.Palette.red)
                 Text(error.userMessage)
                     .font(NibStyle.Typography.body(13))
-                    .foregroundStyle(NibStyle.Palette.inkSoft)
+                    .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.7))
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -65,7 +65,7 @@ struct AccessoryBarView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 7) {
                 ForEach(model.tonePresets) { preset in
-                    NibChip(label: preset.name, isActive: preset.id == model.tonePreset.id) {
+                    NibChip(label: preset.name, isActive: preset.id == model.tonePreset.id, surface: .keyboard) {
                         model.selectTone(preset)
                     }
                 }
@@ -80,7 +80,7 @@ struct AccessoryBarView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 7) {
                 ForEach(["Spanish", "French", "German", "Japanese", "Arabic", "Hebrew"], id: \.self) { lang in
-                    NibChip(label: lang, isActive: lang == model.targetLanguage) {
+                    NibChip(label: lang, isActive: lang == model.targetLanguage, surface: .keyboard) {
                         model.selectLanguage(lang)
                     }
                 }
@@ -103,10 +103,10 @@ struct FullAccessBanner: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Turn on Full Access to use Nib's tools")
                     .font(NibStyle.Typography.body(12.5, weight: .semibold))
-                    .foregroundStyle(NibStyle.Palette.ink)
+                    .foregroundStyle(NibStyle.Palette.keyLabel)
                 Text("Settings → General → Keyboard → Keyboards → Nib")
                     .font(NibStyle.Typography.body(11))
-                    .foregroundStyle(NibStyle.Palette.inkFaint)
+                    .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.5))
             }
             Spacer(minLength: 0)
         }
@@ -126,7 +126,8 @@ struct ToolChipRow: View {
                     NibChip(
                         label: tool.title,
                         systemImage: tool.symbol,
-                        isActive: model.selectedTool == tool
+                        isActive: model.selectedTool == tool,
+                        surface: .keyboard
                     ) {
                         model.select(tool)
                     }
@@ -167,14 +168,14 @@ struct AskAIBar: View {
             .padding(.vertical, 8)
             .background {
                 RoundedRectangle(cornerRadius: 11)
-                    .fill(NibStyle.Palette.paper)
+                    .fill(NibStyle.Palette.key)
                     .overlay(RoundedRectangle(cornerRadius: 11).strokeBorder(NibStyle.Palette.red, lineWidth: 1.5))
             }
 
             ScrollView(.horizontal) {
                 HStack(spacing: 7) {
                     ForEach(suggestions, id: \.self) { s in
-                        NibChip(label: s) {
+                        NibChip(label: s, surface: .keyboard) {
                             model.askPrompt = s
                             model.submitAsk()
                         }
