@@ -67,14 +67,15 @@ final class NextWordStore {
     private static func mayLearn(from proxy: UITextDocumentProxy) -> Bool {
         if proxy.isSecureTextEntry == true { return false }
 
-        switch proxy.keyboardType {
-        case .some(.emailAddress), .some(.URL), .some(.numberPad),
-             .some(.phonePad), .some(.decimalPad), .some(.namePhonePad),
-             .some(.asciiCapableNumberPad):
-            return false
-        default:
-            return true
-        }
+        // Compared rather than pattern-matched: these traits come from an
+        // Objective-C protocol whose members are optional, and `==` reads the
+        // same whether Swift surfaces them as `UIKeyboardType` or `UIKeyboardType?`.
+        let type = proxy.keyboardType
+        let excluded: [UIKeyboardType] = [
+            .emailAddress, .URL, .numberPad, .phonePad,
+            .decimalPad, .namePhonePad, .asciiCapableNumberPad,
+        ]
+        return !excluded.contains { $0 == type }
     }
 
     func save() {

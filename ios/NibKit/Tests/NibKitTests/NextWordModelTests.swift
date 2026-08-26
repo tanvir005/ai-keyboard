@@ -93,11 +93,23 @@ final class NextWordModelTests: XCTestCase {
         XCTAssertTrue(model.predictions(after: ["is"]).isEmpty)
     }
 
-    func testSingleCharactersAndPunctuationAreNotLearned() {
-        XCTAssertFalse(NextWordModel.isLearnable("a"))
+    func testBarePunctuationIsNotLearned() {
         XCTAssertFalse(NextWordModel.isLearnable("!"))
         XCTAssertFalse(NextWordModel.isLearnable("--"))
+        XCTAssertFalse(NextWordModel.isLearnable("'"))
         XCTAssertFalse(NextWordModel.isLearnable(""))
+    }
+
+    /// Single letters are allowed here, unlike in the correction path. "I" and
+    /// "a" open most English sentences, and excluding them killed every phrase
+    /// that starts with one.
+    func testSingleLettersAreLearnable() {
+        XCTAssertTrue(NextWordModel.isLearnable("a"))
+        XCTAssertTrue(NextWordModel.isLearnable("I"))
+
+        var model = NextWordModel()
+        model.learn(previous: ["i"], next: "am")
+        XCTAssertEqual(model.predictions(after: ["I"]), ["am"])
     }
 
     func testAbsurdlyLongRunsAreNotLearned() {

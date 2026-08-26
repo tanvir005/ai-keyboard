@@ -123,8 +123,14 @@ public struct NextWordModel: Codable, Equatable {
     /// leaks. Secure fields are excluded too, but at the call site — this
     /// cannot see the field it was typed into.
     public static func isLearnable(_ word: String) -> Bool {
-        guard word.count > 1, word.count <= 32 else { return false }
+        guard !word.isEmpty, word.count <= 32 else { return false }
         guard !word.contains(where: \.isNumber) else { return false }
+
+        // Single letters are allowed, unlike everywhere else in this codebase:
+        // "I" and "a" are two of the most common words in English, and
+        // excluding them silently killed every phrase that opens with one —
+        // "I am", "a lot" — which is most of how people start a sentence.
+        guard word.contains(where: \.isLetter) else { return false }
 
         return word.allSatisfy { $0.isLetter || $0 == "'" || $0 == "\u{2019}" || $0 == "-" }
     }
