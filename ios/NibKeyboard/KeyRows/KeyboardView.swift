@@ -56,6 +56,7 @@ struct KeyboardView: View {
                                 keyCenterX: centerX(at: index, widths: widths, rowOrigin: rowOrigin),
                                 boardWidth: geo.size.width,
                                 boardInset: sideInset,
+                                hitSlop: keySpacing / 2,
                                 onPress: { onPress(cap) },
                                 onHoldBegin: { onHoldBegin(cap) },
                                 onHoldEnd: { onHoldEnd(cap) },
@@ -170,6 +171,8 @@ struct KeyButton: View {
     var keyCenterX: CGFloat = 0
     var boardWidth: CGFloat = 0
     var boardInset: CGFloat = 6
+    /// Half the gap to the next key, so the gaps belong to somebody.
+    var hitSlop: CGFloat = 3
     var onPress: () -> Void
     var onHoldBegin: () -> Void
     var onHoldEnd: () -> Void
@@ -236,6 +239,17 @@ struct KeyButton: View {
             }
             .zIndex(isPressed ? 1 : 0)
             .animation(.easeOut(duration: 0.07), value: isPressed)
+            // Says exactly what counts as touching this key, rather than
+            // leaving it to whatever SwiftUI infers from the label plus the
+            // slop iOS adds around small targets. Without it a tap in the gap
+            // between two keys was ambiguous: near enough to trigger the click
+            // and the tap, not always near enough to type anything — feedback
+            // reporting a keystroke that never happened.
+            //
+            // Expanded by half the gap so the gaps belong to the nearest key,
+            // which is what the stock keyboard does and why its edges never
+            // feel dead. Nothing outside the rows responds at all.
+            .contentShape(Rectangle().inset(by: -hitSlop))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
