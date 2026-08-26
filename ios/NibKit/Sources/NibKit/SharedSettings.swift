@@ -29,6 +29,19 @@ public final class SharedSettings {
         ])
     }
 
+    /// Where the keyboard keeps what it has learned about how this person
+    /// writes. Named here rather than in the extension so the host app's
+    /// "Clear learned words" can reach the same box the keyboard writes to.
+    public static let learnedWordsKey = "next_word_model"
+
+    /// Throws away the learned next-word table.
+    ///
+    /// The keyboard reloads it when it next launches, so a keyboard on screen
+    /// at the moment this is tapped keeps its copy until it is dismissed.
+    public func forgetLearnedWords() {
+        defaults.removeObject(forKey: Self.learnedWordsKey)
+    }
+
     private enum Key {
         static let soundEnabled = "sound_enabled"
         static let hapticsEnabled = "haptics_enabled"

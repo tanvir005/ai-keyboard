@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var showPaywall = false
     @State private var showClearConfirm = false
+    @State private var showForgetConfirm = false
 
     /// `SharedSettings` writes straight through to the App Group, so a plain
     /// get/set binding is both correct and simpler than threading `@Bindable`
@@ -44,6 +45,16 @@ struct SettingsView: View {
         } message: {
             Text("This removes every saved edit from this device. It can't be undone.")
         }
+        .confirmationDialog(
+            "Clear learned words?",
+            isPresented: $showForgetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Clear learned words", role: .destructive) { settings.forgetLearnedWords() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Nib forgets the phrases it has picked up from your typing. Predictions start again from the basics.")
+        }
     }
 
     private var keyboardSection: some View {
@@ -62,7 +73,12 @@ struct SettingsView: View {
                 }
                 GroupedRow(title: "Sound") { Toggle("", isOn: toggle(\.soundEnabled)).labelsHidden() }
                 GroupedRow(title: "Haptics") { Toggle("", isOn: toggle(\.hapticsEnabled)).labelsHidden() }
-                GroupedRow(title: "Prediction") { Toggle("", isOn: toggle(\.predictionEnabled)).labelsHidden() }
+                GroupedRow(
+                    title: "Prediction",
+                    subtitle: "Suggests the next word from phrases you type often. Learned on this device and never sent anywhere — never from password fields, and never anything containing a number."
+                ) {
+                    Toggle("", isOn: toggle(\.predictionEnabled)).labelsHidden()
+                }
                 GroupedRow(
                     title: "Read full draft, not just selection",
                     subtitle: "Off by default. Needed for whole-message actions like Fix, but keeps Mail and other sensitive apps text-select-only until you turn it on.",
@@ -95,6 +111,15 @@ struct SettingsView: View {
 
                 Button { showClearConfirm = true } label: {
                     GroupedRow(title: "Clear edit history") {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(NibStyle.Palette.inkFaint)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button { showForgetConfirm = true } label: {
+                    GroupedRow(title: "Clear learned words") {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(NibStyle.Palette.inkFaint)

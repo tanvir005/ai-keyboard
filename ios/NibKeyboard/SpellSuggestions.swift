@@ -79,6 +79,18 @@ final class SpellSuggestions {
         if let cached, cached.word == word { return cached.result }
 
         let range = NSRange(location: 0, length: word.utf16.count)
+
+        // Completions first, always — not only when the word is spelled
+        // correctly. A half-typed word is *also* a misspelled one as far as the
+        // checker is concerned, so branching on that sent "hel" down the
+        // corrections path and offered "her": a plausible fix for a typo, and
+        // useless to someone in the middle of writing "hello".
+        let completions = checker.completions(
+            forPartialWordRange: range,
+            in: word,
+            language: language
+        ) ?? []
+
         let misspelled = checker.rangeOfMisspelledWord(
             in: word,
             range: range,
@@ -87,16 +99,20 @@ final class SpellSuggestions {
             language: language
         )
 
-        let raw: [String] = misspelled.location == NSNotFound
-            ? checker.completions(forPartialWordRange: range, in: word, language: language) ?? []
+        let corrections: [String] = misspelled.location == NSNotFound
+            ? []
             : checker.guesses(forWordRange: range, in: word, language: language) ?? []
 
-        // The checker returns these unranked, so "hel" can lead with "helicoid".
-        // Ordering by how ordinary each word is, before trimming to two slots,
-        // is the difference between a useful strip and a curious one.
-        let candidates = WordFrequency
-            .ranked(raw)
+        // Continuations of what is actually on screen beat re-spellings of it,
+        // so they are ranked as a group and placed ahead rather than merged.
+        // Corrections still follow, for the case where nothing completes —
+        // "teh" has no continuations, only a fix.
+        let ordered = WordFrequency.ranked(completions) + WordFrequency.ranked(corrections)
+
+        var seen = Set<String>()
+        let candidates = ordered
             .filter { $0.caseInsensitiveCompare(word) != .orderedSame }
+            .filter { seen.insert($0.lowercased()).inserted }
             .map { matchCase(of: word, in: $0) }
             .prefix(limit)
 

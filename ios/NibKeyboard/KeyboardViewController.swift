@@ -44,6 +44,7 @@ final class KeyboardViewController: UIInputViewController {
     private var lastSpaceAt: Date?
 
     private let spelling = SpellSuggestions()
+    private let nextWords = NextWordStore()
 
 
     override func viewDidLoad() {
@@ -126,7 +127,24 @@ final class KeyboardViewController: UIInputViewController {
             host.rootView.returnLabel = label
         }
 
-        let words = spelling.suggestions(before: contextBeforeCaret)
+        var words = spelling.suggestions(before: contextBeforeCaret)
+
+        // Nothing to correct or complete usually means the caret is sitting
+        // after a space, with no word yet to have an opinion about. That is
+        // exactly where the learned table has something to say, and where the
+        // strip would otherwise be blank.
+        if words.isEmpty, let context = contextBeforeCaret, CurrentWord.trailing(in: context) == nil {
+            let predicted = nextWords.predictions(
+                after: CurrentWord.preceding(in: context, limit: 2),
+                // Three, not two: with no typed word to show, the strip has a
+                // whole slot free.
+                limit: 3
+            )
+            if !predicted.isEmpty {
+                words = WordSuggestions(typed: "", candidates: predicted)
+            }
+        }
+
         if host.rootView.suggestions != words {
             host.rootView.suggestions = words
         }
@@ -138,16 +156,18 @@ final class KeyboardViewController: UIInputViewController {
     /// Deletes by `Character` count so one call per grapheme cluster is made —
     /// the same reason `deleteWordBackward` counts that way.
     private func replaceCurrentWord(with replacement: String) {
-
-        guard
-            let before = contextBeforeCaret,
-            let word = CurrentWord.trailing(in: before)
-        else { return }
-
-        for _ in 0 ..< word.count {
-            textDocumentProxy.deleteBackward()
+        if let before = contextBeforeCaret, let word = CurrentWord.trailing(in: before) {
+            for _ in 0 ..< word.count {
+                textDocumentProxy.deleteBackward()
+            }
+            textDocumentProxy.insertText(replacement)
+        } else {
+            // A prediction rather than a correction: there is no half-typed word
+            // to swap out, so it goes in with the space that was going to follow
+            // it anyway. Taking one is also a vote for it.
+            textDocumentProxy.insertText(replacement + " ")
+            learnFinishedWord()
         }
-        textDocumentProxy.insertText(replacement)
 
         feedback(for: .character(replacement))
         documentChanged()
@@ -158,6 +178,9 @@ final class KeyboardViewController: UIInputViewController {
         // A keyboard dismissed mid-hold would otherwise leave the repeater
         // firing into a document that is no longer ours.
         cancelRepeating()
+        // Writes are batched, so this is where the last few are kept rather
+        // than lost with the process.
+        nextWords.save()
     }
 
     private func updateHeight(_ height: CGFloat) {
@@ -357,6 +380,21 @@ final class KeyboardViewController: UIInputViewController {
         documentChanged()
     }
 
+    /// Feeds the word just completed, and the two before it, to the learned
+    /// table. The store decides whether this field is one we may remember.
+    private func learnFinishedWord() {
+        guard let context = contextBeforeCaret else { return }
+
+        let words = CurrentWord.preceding(in: context, limit: 3)
+        guard let finished = words.last else { return }
+
+        nextWords.learn(
+            previous: Array(words.dropLast()),
+            next: finished,
+            in: textDocumentProxy
+        )
+    }
+
     // MARK: - Cursor dragging
 
     private func beginCursorDrag() {
@@ -410,6 +448,9 @@ final class KeyboardViewController: UIInputViewController {
             if promoteDoubleSpace() { break }
             textDocumentProxy.insertText(" ")
             lastSpaceAt = Date()
+            // A space is what finishes a word, so it is the only moment we know
+            // one is complete enough to be worth remembering.
+            learnFinishedWord()
         case .newline:
             textDocumentProxy.insertText("\n")
         case .backspace:
@@ -465,6 +506,9 @@ struct KeyboardRootView: View {
     // 226 rather than 214: the key rows now sit 12pt lower to leave the press
     // balloon somewhere to go. Without matching that here the bottom row would
     // be pushed into the home indicator.
+    /// A ceiling, not a fixed size. The toolbar above grows a title row when a
+    /// tool is selected, and a fixed height here pushes the bottom key row off
+    /// the input view entirely — where it cannot be tapped at all.
     private let keyAreaHeight: CGFloat = 226
 
     var body: some View {
@@ -490,7 +534,7 @@ struct KeyboardRootView: View {
                     onLetters: { showingEmoji = false },
                     onPress: { onPress(.character("")) }
                 )
-                .frame(height: keyAreaHeight)
+                .frame(maxHeight: keyAreaHeight)
             } else {
                 KeyboardView(
                     mode: mode,
@@ -516,7 +560,7 @@ struct KeyboardRootView: View {
                     onCursorBegin: onCursorBegin,
                     onCursorMove: onCursorMove
                 )
-                .frame(height: keyAreaHeight)
+                .frame(maxHeight: keyAreaHeight)
             }
         }
         .onAppear {
