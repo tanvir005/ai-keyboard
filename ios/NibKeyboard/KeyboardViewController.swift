@@ -79,6 +79,11 @@ final class KeyboardViewController: UIInputViewController {
     /// word can narrow it instead of discarding it. See `documentChanged`.
     private var offered: [String] = []
 
+    /// The toolbar is the one part of the board with an unknown height — it
+    /// grows a title row when a tool is selected. Everything else is constant,
+    /// so this is all the controller needs in order to compute the rest.
+    private var barHeight: CGFloat = 44
+
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -100,7 +105,7 @@ final class KeyboardViewController: UIInputViewController {
             onCursorBegin: { [weak self] in self?.beginCursorDrag() },
             onCursorMove: { [weak self] in self?.moveCursor(by: $0) },
             onAlternate: { [weak self] in self?.insertAlternate($0) },
-            onHeightChange: { [weak self] in self?.updateHeight($0) }
+            onBarHeight: { [weak self] in self?.barHeightChanged($0) }
         )
 
         // The strip below the board — globe and dictation — is the system's,
@@ -233,6 +238,9 @@ final class KeyboardViewController: UIInputViewController {
         guard words.isEmpty else {
             if host.rootView.suggestions != words {
                 host.rootView.suggestions = words
+                // Asked for in the same breath as the content changes, so the
+                // board is never briefly the wrong size for what is in it.
+                applyHeight()
             }
             return
         }
@@ -240,7 +248,9 @@ final class KeyboardViewController: UIInputViewController {
         guard !host.rootView.suggestions.isEmpty else { return }
 
         let work = DispatchWorkItem { [weak self] in
-            self?.host.rootView.suggestions = WordSuggestions()
+            guard let self else { return }
+            self.host.rootView.suggestions = WordSuggestions()
+            self.applyHeight()
         }
         hideSuggestions = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.suggestionLinger, execute: work)
@@ -282,11 +292,28 @@ final class KeyboardViewController: UIInputViewController {
         nextWords.save()
     }
 
-    private func updateHeight(_ height: CGFloat) {
-        guard height > 0, let constraint = heightConstraint else { return }
-        guard abs(constraint.constant - height) > 1 else { return }
+    private func barHeightChanged(_ height: CGFloat) {
+        guard height > 0, abs(barHeight - height) > 1 else { return }
+        barHeight = height
+        applyHeight()
+    }
 
-        constraint.constant = height
+    /// Sets the board's height from what it is made of, rather than measuring
+    /// the result and reacting.
+    ///
+    /// Everything but the toolbar is a known constant, so the total can be
+    /// worked out at the moment the content changes and requested in the same
+    /// breath. Measuring afterwards meant the board spent a beat at the wrong
+    /// size on every appearance of the strip — which is the beat the keys used
+    /// to move in.
+    private func applyHeight() {
+        let strip = host.rootView.suggestions.isEmpty ? 0 : SuggestionStrip.height
+        let total = barHeight + KeyboardRootView.keyAreaHeight + strip
+
+        guard let constraint = heightConstraint else { return }
+        guard abs(constraint.constant - total) > 1 else { return }
+
+        constraint.constant = total
 
         // Matched to the strip's own fade so the board and its contents move
         // as one thing. Left unanimated, the keyboard snaps to its new size
@@ -654,7 +681,7 @@ struct KeyboardRootView: View {
     var onCursorBegin: () -> Void
     var onCursorMove: (Int) -> Void
     var onAlternate: (String) -> Void
-    var onHeightChange: (CGFloat) -> Void
+    var onBarHeight: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
     @State private var shifted = true
@@ -666,7 +693,8 @@ struct KeyboardRootView: View {
     /// A ceiling, not a fixed size. The toolbar above grows a title row when a
     /// tool is selected, and a fixed height here pushes the bottom key row off
     /// the input view entirely — where it cannot be tapped at all.
-    private let keyAreaHeight: CGFloat = 226
+    static let keyAreaHeight: CGFloat = 226
+    private var keyAreaHeight: CGFloat { Self.keyAreaHeight }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -678,7 +706,17 @@ struct KeyboardRootView: View {
                 )
                 .transition(.opacity)
             }
+            // The only part of the board whose height is not known in advance:
+            // it grows a title row when a tool is selected. Measuring just this
+            // — rather than the whole board — is what lets the controller
+            // compute the total instead of waiting to be told it.
             AccessoryBarView(model: model)
+                .background {
+                    GeometryReader { geo in
+                        Color.clear.preference(key: BarHeightKey.self, value: geo.size.height)
+                    }
+                }
+                .onPreferenceChange(BarHeightKey.self) { onBarHeight($0) }
 
             if showingEmoji {
                 EmojiPageView(
@@ -732,13 +770,19 @@ struct KeyboardRootView: View {
             // capitalises the middle of somebody's sentence.
             shifted = autoShift()
         }
+        // Anchored to the bottom, and this is the whole of why the keys used to
+        // move. The host view is pinned top and bottom, so between the moment
+        // the strip appears and the moment the system grants the extra height,
+        // the content is taller than the box holding it — and SwiftUI centres
+        // what overflows. Centred, 302pt of board in a 270pt box spilled 16pt
+        // off each end: the keys slid down by 16 and the suggestion text was
+        // sliced along the top. Both complaints, one cause.
+        //
+        // Bottom-aligned, the overflow can only go upward, which is the
+        // direction there is room in and the direction the board grows anyway.
+        // The keys stay where they are whatever the height is doing.
+        .frame(maxHeight: .infinity, alignment: .bottom)
         .background(NibStyle.Palette.keyboardBackground)
-        .background {
-            GeometryReader { geo in
-                Color.clear.preference(key: KeyboardHeightKey.self, value: geo.size.height)
-            }
-        }
-        .onPreferenceChange(KeyboardHeightKey.self) { onHeightChange($0) }
     }
 
     /// Shift and page switching are view state; everything else is a document
@@ -775,7 +819,9 @@ struct KeyboardRootView: View {
     }
 }
 
-private struct KeyboardHeightKey: PreferenceKey {
+/// The accessory bar reports its own height, which is the one measurement the
+/// board cannot work out for itself.
+private struct BarHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
