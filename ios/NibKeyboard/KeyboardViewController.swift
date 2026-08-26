@@ -60,9 +60,24 @@ final class KeyboardViewController: UIInputViewController {
     /// abandoned it, and learning it would poison the table with half-words.
     private var lastKeyWasDelete = false
 
-    /// How long the strip stays after it has nothing left to say.
-    private static let suggestionLinger: TimeInterval = 0.5
+    /// A short coalescing delay before the strip leaves.
+    ///
+    /// Narrowing the predictions removes most of the reason the strip used to
+    /// blink, so this no longer has to cover a two-keystroke gap — it only
+    /// absorbs a single frame where one source has run out and the next has not
+    /// answered yet. Long enough to stop a flicker, short enough that the strip
+    /// never feels like it is lagging behind the typing.
+    private static let suggestionLinger: TimeInterval = 0.18
+
+    /// One duration for the strip's fade and the board's resize. They are the
+    /// same movement seen from two places, and any difference between them
+    /// reads as the keyboard coming apart.
+    static let resizeDuration: TimeInterval = 0.22
     private var hideSuggestions: DispatchWorkItem?
+
+    /// What the learned table last offered, kept so the letters of the next
+    /// word can narrow it instead of discarding it. See `documentChanged`.
+    private var offered: [String] = []
 
 
     override func viewDidLoad() {
@@ -113,12 +128,11 @@ final class KeyboardViewController: UIInputViewController {
         // The resting height: 44pt tool row + 226pt of keys, no strip. It grows
         // by the strip's 32pt when there is something to suggest.
         //
-        // This was fixed for a while, because the input view does not resize in
-        // step with its content and the board overflowed. What makes it safe
-        // now is that nothing inside insists on its size any more — key height
-        // is derived from the room available and both pages take a ceiling — so
-        // a resize that arrives late compresses the keys a little instead of
-        // pushing the bottom row off the screen.
+        // The key area is a fixed 226 and stays that way. Letting it give way
+        // was worse than it sounds: SwiftUI found it could fit the strip by
+        // squashing the keys, so the board never asked the system for more
+        // height at all — the keys silently paid for the strip. Fixed, the
+        // content has one honest ideal height and the board grows to match.
         let height = view.heightAnchor.constraint(equalToConstant: 270)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
@@ -160,25 +174,49 @@ final class KeyboardViewController: UIInputViewController {
 
         noticeFieldEmptying()
 
-        var words = spelling.suggestions(before: contextBeforeCaret)
+        let context = contextBeforeCaret ?? ""
 
-        // Nothing to correct or complete usually means the caret is sitting
-        // after a space, with no word yet to have an opinion about. That is
-        // exactly where the learned table has something to say, and where the
-        // strip would otherwise be blank.
-        if words.isEmpty, let context = contextBeforeCaret, CurrentWord.trailing(in: context) == nil {
-            let predicted = nextWords.predictions(
+        // Between words: ask the learned table what usually comes next, and
+        // keep the answer. The first letters of the next word will narrow it
+        // rather than throw it away.
+        guard let word = CurrentWord.trailing(in: context) else {
+            offered = nextWords.predictions(
                 after: CurrentWord.preceding(in: context, limit: 2),
                 // Three, not two: with no typed word to show, the strip has a
                 // whole slot free.
                 limit: 3
             )
-            if !predicted.isEmpty {
-                words = WordSuggestions(typed: "", candidates: predicted)
-            }
+            publish(offered.isEmpty ? WordSuggestions() : WordSuggestions(typed: "", candidates: offered))
+            return
         }
 
-        publish(words)
+        // The predictions that were on offer a moment ago, narrowed to the ones
+        // still consistent with what has been typed since.
+        //
+        // This is what stops the strip blinking. The dictionary says nothing
+        // about a one- or two-letter word — too many candidates to mean
+        // anything — so the strip used to empty at the start of every word and
+        // refill two keystrokes later. Carrying the prediction through those
+        // keystrokes removes the gap rather than timing around it, and the
+        // suggestion it carries is a better one: a phrase this person actually
+        // writes, not a word that merely starts the same way.
+        let narrowed = offered.filter {
+            $0.count > word.count && $0.lowercased().hasPrefix(word.lowercased())
+        }
+
+        let fromDictionary = spelling.suggestions(before: context)
+
+        guard !narrowed.isEmpty else {
+            publish(fromDictionary)
+            return
+        }
+
+        var seen = Set<String>()
+        let merged = (narrowed + fromDictionary.candidates)
+            .filter { seen.insert($0.lowercased()).inserted }
+            .prefix(2)
+
+        publish(WordSuggestions(typed: word, candidates: Array(merged)))
     }
 
     /// Suggestions appear at once and leave on a delay.
@@ -255,7 +293,7 @@ final class KeyboardViewController: UIInputViewController {
         // while the strip is still fading in, and the keys jump under the
         // thumb — which is the part that reads as disruptive, more than the
         // strip appearing at all.
-        UIView.animate(withDuration: 0.16) {
+        UIView.animate(withDuration: Self.resizeDuration) {
             self.view.superview?.layoutIfNeeded()
         }
     }
@@ -655,7 +693,7 @@ struct KeyboardRootView: View {
                     onLetters: { showingEmoji = false },
                     onPress: { onPress(.character("")) }
                 )
-                .frame(maxHeight: keyAreaHeight)
+                .frame(height: keyAreaHeight)
             } else {
                 KeyboardView(
                     mode: mode,
@@ -681,14 +719,14 @@ struct KeyboardRootView: View {
                     onCursorBegin: onCursorBegin,
                     onCursorMove: onCursorMove
                 )
-                .frame(maxHeight: keyAreaHeight)
+                .frame(height: keyAreaHeight)
             }
         }
         // Only the strip's own arrival and departure are animated, keyed on
         // whether there is anything to show. Animating on the words themselves
         // would cross-fade the row every time a keystroke changed a suggestion,
         // which is movement where the user is trying to read.
-        .animation(.easeOut(duration: 0.16), value: suggestions.isEmpty)
+        .animation(.easeOut(duration: KeyboardViewController.resizeDuration), value: suggestions.isEmpty)
         .onAppear {
             // The field may already contain text — starting shifted regardless
             // capitalises the middle of somebody's sentence.

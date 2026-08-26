@@ -62,17 +62,25 @@ public enum NibStyle {
         // no longer carries the kraft identity, which now lives in the app and
         // in the accent. That is the trade, made deliberately.
         //
-        public static let keyboardBackground = Color.adaptive(light: 0xD1D3D9, dark: 0x2C2C2E)
-        public static let key = Color.adaptive(light: 0xFFFFFF, dark: 0x6C6C70)
-        public static let keyWide = Color.adaptive(light: 0xACB3BE, dark: 0x48484A)
+        // Named from the system palette rather than mixed here. A hand-picked
+        // hex cannot stay matched: the first attempt was a bluish grey against
+        // the bar's neutral one and the seam was plain on a device. Apple has
+        // also changed these greys between releases, so a frozen value drifts
+        // even if it starts right. Naming the colour tracks whatever the system
+        // is using today.
+        public static let keyboardBackground = systemGray5
+
+        /// Behind the tool row and the suggestion strip — the same grey as the
+        /// board, so the whole keyboard reads as one surface.
+        public static let keyboardAccessory = systemGray5
+
+        public static let key = systemKey
+        public static let keyWide = systemGray4
 
         /// Key caps and the glyphs on them. Not `ink`: the kraft brown was
         /// mixed for paper, and on a white key against system grey it reads as
         /// a smudge rather than as type.
-        public static let keyLabel = Color.adaptive(light: 0x000000, dark: 0xFFFFFF)
-
-        /// Behind the tool row and the suggestion strip.
-        public static let keyboardAccessory = Color.adaptive(light: 0xD1D3D9, dark: 0x2C2C2E)
+        public static let keyLabel = systemLabel
 
         /// Text and glyphs sitting on the red accent. Cream in both appearances
         /// — the accent itself does not change lightness enough to flip it.
@@ -80,6 +88,47 @@ public enum NibStyle {
 
         /// Flat fill behind the onboarding illustrations.
         public static let illustration = Color.adaptive(light: 0xEFE6CC, dark: 0x2A241B)
+
+        // MARK: - Borrowed from the system
+        //
+        // The fallbacks are only reached in the headless macOS test build,
+        // where nothing is drawn. They are Apple's published values, kept so
+        // the file still reads as a palette rather than a set of holes.
+
+        private static let systemGray4: Color = {
+            #if canImport(UIKit)
+            Color(UIColor.systemGray4)
+            #else
+            Color.adaptive(light: 0xD1D1D6, dark: 0x3A3A3C)
+            #endif
+        }()
+
+        private static let systemGray5: Color = {
+            #if canImport(UIKit)
+            Color(UIColor.systemGray5)
+            #else
+            Color.adaptive(light: 0xE5E5EA, dark: 0x2C2C2E)
+            #endif
+        }()
+
+        /// White in the light, and a grey *lighter* than the board in the dark
+        /// — keys read as raised in both, which is the one relationship the
+        /// system's own keyboard never inverts.
+        private static let systemKey: Color = {
+            #if canImport(UIKit)
+            Color(UIColor { $0.userInterfaceStyle == .dark ? .systemGray3 : .white })
+            #else
+            Color.adaptive(light: 0xFFFFFF, dark: 0x48484A)
+            #endif
+        }()
+
+        private static let systemLabel: Color = {
+            #if canImport(UIKit)
+            Color(UIColor.label)
+            #else
+            Color.adaptive(light: 0x000000, dark: 0xFFFFFF)
+            #endif
+        }()
     }
 
     // MARK: - Typography
