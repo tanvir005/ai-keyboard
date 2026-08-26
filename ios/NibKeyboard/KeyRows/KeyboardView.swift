@@ -24,6 +24,8 @@ struct KeyboardView: View {
     var onCursorMove: (Int) -> Void
 
     private let rowSpacing: CGFloat = 8
+    private let topInset: CGFloat = 18
+    private let bottomInset: CGFloat = 6
     private let keySpacing: CGFloat = 6
 
     /// Breathing room at the board's edges. Most of why the layout read as
@@ -34,6 +36,7 @@ struct KeyboardView: View {
     var body: some View {
         GeometryReader { geo in
             let rows = KeyboardLayout.rows(for: mode, shifted: shifted, needsGlobe: needsGlobe)
+            let keyHeight = keyHeight(forBoardHeight: geo.size.height, rows: rows.count)
             VStack(spacing: rowSpacing) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     let widths = row.map { width(for: $0, in: row, totalWidth: geo.size.width) }
@@ -48,6 +51,7 @@ struct KeyboardView: View {
                                 cap: cap,
                                 isActive: cap == .shift && shifted,
                                 width: widths[index],
+                                height: keyHeight,
                                 previewAnchor: previewAnchor(at: index, in: row),
                                 keyCenterX: centerX(at: index, widths: widths, rowOrigin: rowOrigin),
                                 boardWidth: geo.size.width,
@@ -70,9 +74,26 @@ struct KeyboardView: View {
             // this gap, and the input view clips at its own edge. Without the
             // headroom the balloon cannot grow to the size a thumb-covered key
             // actually needs.
-            .padding(.top, 18)
-            .padding(.bottom, 6)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
         }
+    }
+
+    /// Key height, from whatever room the board actually got.
+    ///
+    /// Fixed at 42 it fits — until the toolbar above grows a title row for a
+    /// selected tool, at which point the total exceeds the input view and the
+    /// bottom row is simply cut off the screen, unreachable. Keys a few points
+    /// shorter are a far smaller cost than a return key nobody can press, so
+    /// the height gives way rather than the layout breaking.
+    private func keyHeight(forBoardHeight height: CGFloat, rows: Int) -> CGFloat {
+        guard rows > 0 else { return KeyButton.height }
+
+        let spacing = rowSpacing * CGFloat(rows - 1)
+        let available = height - topInset - bottomInset - spacing
+        guard available > 0 else { return KeyButton.minimumHeight }
+
+        return min(KeyButton.height, max(KeyButton.minimumHeight, available / CGFloat(rows)))
     }
 
     /// Distributes the row's width by each key's relative units, so wide keys
@@ -144,6 +165,7 @@ struct KeyButton: View {
     let cap: KeyCap
     var isActive: Bool = false
     let width: CGFloat
+    var height: CGFloat = KeyButton.height
     var previewAnchor: Alignment = .top
     var keyCenterX: CGFloat = 0
     var boardWidth: CGFloat = 0
@@ -159,7 +181,10 @@ struct KeyButton: View {
     var labelOverride: String?
     var action: () -> Void
 
+    /// The height a key wants. `KeyboardView` passes what it can actually give.
     static let height: CGFloat = 42
+    /// Below this a key stops being reliably hittable.
+    static let minimumHeight: CGFloat = 32
     static let alternateItemWidth: CGFloat = 38
     static let alternateItemHeight: CGFloat = 46
     static let alternatePadding: CGFloat = 4
@@ -182,7 +207,7 @@ struct KeyButton: View {
     var body: some View {
         keyLabel
             .foregroundStyle(isActive ? NibStyle.Palette.onAccent : NibStyle.Palette.ink)
-            .frame(width: width, height: Self.height)
+            .frame(width: width, height: height)
             .background {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(fill)
@@ -234,7 +259,7 @@ struct KeyButton: View {
                         // vanishing with no explanation.
                         pressInside = TypingRules.releaseCommitsKey(
                             location: value.location,
-                            size: CGSize(width: width, height: Self.height)
+                            size: CGSize(width: width, height: height)
                         )
 
                         if !isPressed {
@@ -273,7 +298,7 @@ struct KeyButton: View {
                             onHoldEnd()
                         } else if TypingRules.releaseCommitsKey(
                             location: value.location,
-                            size: CGSize(width: width, height: Self.height)
+                            size: CGSize(width: width, height: height)
                         ) {
                             action()
                         }

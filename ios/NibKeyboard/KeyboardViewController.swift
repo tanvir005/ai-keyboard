@@ -506,6 +506,9 @@ struct KeyboardRootView: View {
     // 226 rather than 214: the key rows now sit 12pt lower to leave the press
     // balloon somewhere to go. Without matching that here the bottom row would
     // be pushed into the home indicator.
+    /// A ceiling, not a fixed size. The toolbar above grows a title row when a
+    /// tool is selected, and a fixed height here pushes the bottom key row off
+    /// the input view entirely — where it cannot be tapped at all.
     private let keyAreaHeight: CGFloat = 226
 
     var body: some View {
@@ -531,7 +534,7 @@ struct KeyboardRootView: View {
                     onLetters: { showingEmoji = false },
                     onPress: { onPress(.character("")) }
                 )
-                .frame(height: keyAreaHeight)
+                .frame(maxHeight: keyAreaHeight)
             } else {
                 KeyboardView(
                     mode: mode,
@@ -557,7 +560,7 @@ struct KeyboardRootView: View {
                     onCursorBegin: onCursorBegin,
                     onCursorMove: onCursorMove
                 )
-                .frame(height: keyAreaHeight)
+                .frame(maxHeight: keyAreaHeight)
             }
         }
         .onAppear {
