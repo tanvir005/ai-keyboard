@@ -71,8 +71,8 @@ struct EmojiPageView: View {
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundStyle(
                                     category.id == selected
-                                        ? NibStyle.Palette.ink
-                                        : NibStyle.Palette.inkFaint
+                                        ? NibStyle.Palette.keyLabel
+                                        : NibStyle.Palette.keyLabel.opacity(0.5)
                                 )
                                 .frame(width: 34, height: 32)
                                 .background {
@@ -115,7 +115,7 @@ struct EmojiPageView: View {
                         .font(.system(size: 14, weight: .medium))
                 }
             }
-                .foregroundStyle(NibStyle.Palette.ink)
+                .foregroundStyle(NibStyle.Palette.keyLabel)
                 .frame(width: width, height: 34)
                 .background {
                     RoundedRectangle(cornerRadius: 6)

@@ -50,16 +50,29 @@ public enum NibStyle {
         public static let green = Color.adaptive(light: 0x4CB05B, dark: 0x5FBF6E)
         public static let toggleOff = Color.adaptive(light: 0xD8CBA0, dark: 0x494133)
 
-        // Keyboard-specific.
+        // Keyboard-specific: the stock iOS palette rather than the kraft one.
         //
-        // Note the inversion: in the light board the keys are *lighter* than the
-        // board and the function keys darker. In the dark board the keys are
-        // lighter than the board too — so function keys become darker again
-        // rather than the whole relationship flipping. Keys read as raised in
-        // both, which is the point.
-        public static let keyboardBackground = Color.adaptive(light: 0xD2C6A2, dark: 0x120F0B)
-        public static let key = Color.adaptive(light: 0xFBF8EF, dark: 0x3B342A)
-        public static let keyWide = Color.adaptive(light: 0xB7AA84, dark: 0x262119)
+        // The board sits directly above a strip the system draws and colours
+        // itself — the globe and dictation bar — which cannot be restyled from
+        // an extension. Kraft above system grey read as two keyboards stacked,
+        // and the seam was the first thing the eye went to. Matching the system
+        // makes that seam disappear.
+        //
+        // The cost is real: the surface people spend the most time looking at
+        // no longer carries the kraft identity, which now lives in the app and
+        // in the accent. That is the trade, made deliberately.
+        //
+        public static let keyboardBackground = Color.adaptive(light: 0xD1D3D9, dark: 0x2C2C2E)
+        public static let key = Color.adaptive(light: 0xFFFFFF, dark: 0x6C6C70)
+        public static let keyWide = Color.adaptive(light: 0xACB3BE, dark: 0x48484A)
+
+        /// Key caps and the glyphs on them. Not `ink`: the kraft brown was
+        /// mixed for paper, and on a white key against system grey it reads as
+        /// a smudge rather than as type.
+        public static let keyLabel = Color.adaptive(light: 0x000000, dark: 0xFFFFFF)
+
+        /// Behind the tool row and the suggestion strip.
+        public static let keyboardAccessory = Color.adaptive(light: 0xD1D3D9, dark: 0x2C2C2E)
 
         /// Text and glyphs sitting on the red accent. Cream in both appearances
         /// — the accent itself does not change lightness enough to flip it.

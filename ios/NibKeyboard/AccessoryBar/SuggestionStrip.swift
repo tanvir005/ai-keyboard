@@ -54,12 +54,12 @@ struct SuggestionStrip: View {
         }
         .frame(height: Self.height)
         .frame(maxWidth: .infinity)
-        .background(NibStyle.Palette.surface)
+        .background(NibStyle.Palette.keyboardAccessory)
     }
 
     private var divider: some View {
         Rectangle()
-            .fill(NibStyle.Palette.divider)
+            .fill(NibStyle.Palette.keyLabel.opacity(0.25))
             .frame(width: 1, height: 16)
     }
 
@@ -71,7 +71,7 @@ struct SuggestionStrip: View {
         Button(action: action) {
             Text(text)
                 .font(.system(size: 15, weight: emphasised ? .semibold : .regular))
-                .foregroundStyle(emphasised ? NibStyle.Palette.ink : NibStyle.Palette.inkSoft)
+                .foregroundStyle(emphasised ? NibStyle.Palette.keyLabel : NibStyle.Palette.keyLabel.opacity(0.7))
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity, minHeight: Self.height)

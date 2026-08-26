@@ -253,7 +253,7 @@ struct KeyButton: View {
 
     var body: some View {
         keyLabel
-            .foregroundStyle(isActive ? NibStyle.Palette.onAccent : NibStyle.Palette.ink)
+            .foregroundStyle(isActive ? NibStyle.Palette.onAccent : NibStyle.Palette.keyLabel)
             .frame(width: width, height: height)
             .background {
                 RoundedRectangle(cornerRadius: 6)
@@ -263,7 +263,7 @@ struct KeyButton: View {
                         // delete and space stay visually inert under the finger.
                         if isPressed, pressInside, !showsBalloon {
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(NibStyle.Palette.ink.opacity(0.16))
+                                .fill(NibStyle.Palette.keyLabel.opacity(0.16))
                         }
                     }
                     .shadow(color: .black.opacity(0.18), radius: 0, y: 1)
@@ -321,6 +321,18 @@ struct KeyButton: View {
                         )
 
                         if !isPressed {
+                            // Where the touch actually *began*, measured against
+                            // this key rather than trusted to whatever routed
+                            // the gesture here. Declaring the hit area was meant
+                            // to keep the board's margins quiet and did not, so
+                            // this asks the one question that cannot be answered
+                            // wrong: is the finger on the key or not?
+                            //
+                            // Strict, unlike the release check below. Starting a
+                            // touch is a decision; finishing one is a wobble, and
+                            // deserves more room.
+                            guard startedOnKey(value.location) else { return }
+
                             isPressed = true
                             onPress()
                             // A repeating key has to act on touch-down: waiting
@@ -422,6 +434,19 @@ struct KeyButton: View {
         }
     }
 
+    /// Whether a touch at `location` counts as landing on this key.
+    ///
+    /// Uses the same asymmetric reach as the hit area: half a gap toward a
+    /// neighbouring key, nothing at all toward the board's margin. So the strip
+    /// under the bottom row and the band above the top row belong to no key,
+    /// and touching them does nothing.
+    private func startedOnKey(_ location: CGPoint) -> Bool {
+        location.x >= -hitSlop.leading
+            && location.x <= width + hitSlop.trailing
+            && location.y >= -hitSlop.top
+            && location.y <= height + hitSlop.bottom
+    }
+
     /// Characters only — the same rule Apple applies. Shift, delete, space and
     /// return are never hidden by your fingertip, so a balloon would be noise.
     private var showsBalloon: Bool {
@@ -487,7 +512,7 @@ struct KeyButton: View {
                 Text(glyph)
                     .font(.system(size: 22))
                     .foregroundStyle(
-                        index == selectedAlternate ? NibStyle.Palette.onAccent : NibStyle.Palette.ink
+                        index == selectedAlternate ? NibStyle.Palette.onAccent : NibStyle.Palette.keyLabel
                     )
                     .frame(width: Self.alternateItemWidth, height: Self.alternateItemHeight)
                     .background {
@@ -550,7 +575,7 @@ struct KeyPreview: View {
         VStack(spacing: 0) {
             Text(label)
                 .font(.system(size: 32, weight: .regular))
-                .foregroundStyle(NibStyle.Palette.ink)
+                .foregroundStyle(NibStyle.Palette.keyLabel)
                 .frame(width: balloonWidth, height: Self.balloonHeight)
                 .background {
                     RoundedRectangle(cornerRadius: 9)
