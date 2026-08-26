@@ -349,6 +349,25 @@ final class KeyboardViewController: UIInputViewController {
         documentChanged()
     }
 
+    // MARK: - Suggestions
+
+    /// The user tapped the word they actually typed, keeping it as written.
+    private func keepTypedWord(_ word: String) {
+        spelling.keep(word)
+        documentChanged()
+    }
+
+    // MARK: - Cursor dragging
+
+    private func beginCursorDrag() {
+        feedback(for: .space)
+    }
+
+    private func moveCursor(by offset: Int) {
+        guard offset != 0 else { return }
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+    }
+
     // MARK: - Auto-capitalisation
 
     /// True when the caret sits where a capital belongs — an empty field, or the
