@@ -54,7 +54,9 @@ struct SuggestionStrip: View {
         }
         .frame(height: Self.height)
         .frame(maxWidth: .infinity)
-        .background(NibStyle.Palette.keyboardAccessory)
+        // Clear so the keyboard material shows through — the strip is part of
+        // the same surface, not a panel laid on top of it.
+        .background(Color.clear)
     }
 
     private var divider: some View {
