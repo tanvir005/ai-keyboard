@@ -49,7 +49,7 @@ struct HomeView: View {
         } label: {
             Text(quotaText)
                 .font(NibStyle.Typography.body(12, weight: .semibold))
-                .foregroundStyle(settings.isQuotaExhausted ? Color(hex: 0xFBF3E8) : NibStyle.Palette.inkSoft)
+                .foregroundStyle(settings.isQuotaExhausted ? NibStyle.Palette.onAccent : NibStyle.Palette.inkSoft)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background {

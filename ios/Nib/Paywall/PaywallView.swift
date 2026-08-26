@@ -125,7 +125,7 @@ struct PaywallView: View {
                 if plan == .yearly, let note = plan.note {
                     Text(note)
                         .font(NibStyle.Typography.body(10, weight: .bold))
-                        .foregroundStyle(Color(hex: 0xFBF3E8))
+                        .foregroundStyle(NibStyle.Palette.onAccent)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(NibStyle.Palette.red, in: Capsule())

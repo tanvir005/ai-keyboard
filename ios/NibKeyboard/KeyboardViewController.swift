@@ -45,6 +45,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private let spelling = SpellSuggestions()
 
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -59,8 +60,11 @@ final class KeyboardViewController: UIInputViewController {
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
             returnLabel: returnLabel(),
             needsGlobe: needsInputModeSwitchKey,
-            suggestions: [],
+            suggestions: WordSuggestions(),
             onSuggestion: { [weak self] in self?.replaceCurrentWord(with: $0) },
+            onKeepTyped: { [weak self] in self?.keepTypedWord($0) },
+            onCursorBegin: { [weak self] in self?.beginCursorDrag() },
+            onCursorMove: { [weak self] in self?.moveCursor(by: $0) },
             onAlternate: { [weak self] in self?.insertAlternate($0) },
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
@@ -122,10 +126,11 @@ final class KeyboardViewController: UIInputViewController {
             host.rootView.returnLabel = label
         }
 
-        let words = spelling.suggestions(before: textDocumentProxy.documentContextBeforeInput)
+        let words = spelling.suggestions(before: contextBeforeCaret)
         if host.rootView.suggestions != words {
             host.rootView.suggestions = words
         }
+
     }
 
     /// Swaps the word under the caret for a tapped suggestion.
@@ -133,8 +138,9 @@ final class KeyboardViewController: UIInputViewController {
     /// Deletes by `Character` count so one call per grapheme cluster is made —
     /// the same reason `deleteWordBackward` counts that way.
     private func replaceCurrentWord(with replacement: String) {
+
         guard
-            let before = textDocumentProxy.documentContextBeforeInput,
+            let before = contextBeforeCaret,
             let word = CurrentWord.trailing(in: before)
         else { return }
 
@@ -225,7 +231,12 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Whether there is anything behind the caret at all.
     private var hasTextToDelete: Bool {
-        !(textDocumentProxy.documentContextBeforeInput ?? "").isEmpty
+        !(contextBeforeCaret ?? "").isEmpty
+    }
+
+    /// The document before the caret.
+    private var contextBeforeCaret: String? {
+        textDocumentProxy.documentContextBeforeInput
     }
 
     private func repeatTick() {
@@ -265,7 +276,7 @@ final class KeyboardViewController: UIInputViewController {
     /// is called once per grapheme cluster — the same reason `TextContextResolver`
     /// counts that way. An emoji in the deleted span is one delete, not four.
     private func deleteWordBackward() {
-        guard let before = textDocumentProxy.documentContextBeforeInput, !before.isEmpty else {
+        guard let before = contextBeforeCaret, !before.isEmpty else {
             textDocumentProxy.deleteBackward()
             return
         }
@@ -300,7 +311,7 @@ final class KeyboardViewController: UIInputViewController {
         guard
             let last = lastSpaceAt,
             Date().timeIntervalSince(last) < Self.doubleSpaceWindow,
-            let before = textDocumentProxy.documentContextBeforeInput,
+            let before = contextBeforeCaret,
             TypingRules.shouldPromoteSpaceToSentenceBreak(before: before)
         else { return false }
 
@@ -338,6 +349,25 @@ final class KeyboardViewController: UIInputViewController {
         documentChanged()
     }
 
+    // MARK: - Suggestions
+
+    /// The user tapped the word they actually typed, keeping it as written.
+    private func keepTypedWord(_ word: String) {
+        spelling.keep(word)
+        documentChanged()
+    }
+
+    // MARK: - Cursor dragging
+
+    private func beginCursorDrag() {
+        feedback(for: .space)
+    }
+
+    private func moveCursor(by offset: Int) {
+        guard offset != 0 else { return }
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+    }
+
     // MARK: - Auto-capitalisation
 
     /// True when the caret sits where a capital belongs — an empty field, or the
@@ -347,7 +377,7 @@ final class KeyboardViewController: UIInputViewController {
     /// only ever turned off. Clearing a field left it lowercase because nothing
     /// ever asked this question again.
     private func shouldAutoCapitalize() -> Bool {
-        guard let before = textDocumentProxy.documentContextBeforeInput else { return true }
+        guard let before = contextBeforeCaret else { return true }
 
         var index = before.endIndex
         var crossedSpace = false
@@ -420,8 +450,11 @@ struct KeyboardRootView: View {
     var autoShift: () -> Bool
     var returnLabel: String
     var needsGlobe: Bool
-    var suggestions: [String]
+    var suggestions: WordSuggestions
     var onSuggestion: (String) -> Void
+    var onKeepTyped: (String) -> Void
+    var onCursorBegin: () -> Void
+    var onCursorMove: (Int) -> Void
     var onAlternate: (String) -> Void
     var onHeightChange: (CGFloat) -> Void
 
@@ -437,7 +470,11 @@ struct KeyboardRootView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Always present. See SuggestionStrip for why it cannot come and go.
-            SuggestionStrip(suggestions: suggestions, onPick: onSuggestion)
+            SuggestionStrip(
+                suggestions: suggestions,
+                onPick: onSuggestion,
+                onKeepTyped: onKeepTyped
+            )
             AccessoryBarView(model: model)
 
             if showingEmoji {
@@ -475,7 +512,9 @@ struct KeyboardRootView: View {
                         // the gesture, so it never passes through `handle`.
                         onAlternate(glyph)
                         shifted = autoShift()
-                    }
+                    },
+                    onCursorBegin: onCursorBegin,
+                    onCursorMove: onCursorMove
                 )
                 .frame(height: keyAreaHeight)
             }
@@ -512,11 +551,15 @@ struct KeyboardRootView: View {
             // every figure typed mid-sentence costs a second trip back to ABC.
             mode = .letters
             shifted = autoShift()
-        case .character, .backspace:
+        case .character(let character):
             onKey(cap)
+            if TypingRules.returnsToLetters(after: character) { mode = .letters }
             // Auto-unshift after a capital, and auto-shift again at the start of
             // the next sentence — one rule covers both, because it asks where
             // the caret actually is rather than tracking what was typed.
+            shifted = autoShift()
+        case .backspace:
+            onKey(cap)
             shifted = autoShift()
         default:
             onKey(cap)

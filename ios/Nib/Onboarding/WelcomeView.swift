@@ -20,7 +20,7 @@ struct WelcomeView: View {
             Spacer()
 
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(hex: 0xEFE6CC))
+                .fill(NibStyle.Palette.illustration)
                 .frame(width: 64, height: 64)
                 .overlay {
                     Image(systemName: "pencil.tip")

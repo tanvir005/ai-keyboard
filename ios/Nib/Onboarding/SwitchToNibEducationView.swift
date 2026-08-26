@@ -25,7 +25,7 @@ struct SwitchToNibEducationView: View {
             Spacer()
 
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(hex: 0xEFE6CC))
+                .fill(NibStyle.Palette.illustration)
                 .frame(width: 48, height: 48)
                 .overlay {
                     Image(systemName: "globe")
