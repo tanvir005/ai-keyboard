@@ -1,5 +1,12 @@
 import SwiftUI
+
+// The package builds for macOS purely so `swift test` runs without a simulator,
+// and there is no UIKit there. Guarded rather than moved out of NibKit: the
+// tokens are the one place a colour should be defined, and splitting them by
+// platform would put half the palette somewhere else.
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Design tokens lifted from the concept mockup (docs/screens/nib-concept.html).
 ///
@@ -109,12 +116,18 @@ extension Color {
     /// colour scheme in each view: a token has to resolve correctly inside the
     /// keyboard extension too, where there is no environment of ours to read.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
+        #if canImport(UIKit)
         Color(UIColor { traits in
             UIColor(hex: traits.userInterfaceStyle == .dark ? dark : light)
         })
+        #else
+        // Only reachable in the headless test build, which never renders.
+        Color(hex: light)
+        #endif
     }
 }
 
+#if canImport(UIKit)
 extension UIColor {
     convenience init(hex: UInt32) {
         self.init(
@@ -125,3 +138,4 @@ extension UIColor {
         )
     }
 }
+#endif

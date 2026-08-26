@@ -3,9 +3,11 @@ import PackageDescription
 
 // NibKit is shared by both the host app and the keyboard extension.
 //
-// Deliberately contains NO UIKit. Everything here is Foundation/SwiftUI only,
-// so the pure-logic pieces (TextContextResolver above all) can be exercised
-// with `swift test` on any machine — no simulator, no Xcode.
+// Deliberately contains no *unguarded* UIKit. Everything here is Foundation and
+// SwiftUI only, except the colour tokens, which need UIKit to resolve against the
+// current appearance and are behind `#if canImport(UIKit)`. The pure-logic pieces
+// (TextContextResolver above all) stay exercisable with `swift test` on any
+// machine — no simulator, no Xcode. Keep it that way.
 let package = Package(
     name: "NibKit",
     platforms: [
