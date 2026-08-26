@@ -32,6 +32,22 @@ public enum TypingRules {
         return true
     }
 
+    // MARK: - Coming back from the symbols page
+
+    /// Whether typing `character` should send the board back to letters.
+    ///
+    /// The apostrophe is the case that matters. You switch to 123 in the middle
+    /// of "don't" and are still mid-word when you come back, so without this
+    /// every contraction costs a second trip to ABC. A space already returns —
+    /// but there is no space in the middle of a word.
+    ///
+    /// Sentence punctuation is deliberately not here: a full stop is nearly
+    /// always followed by a space, which returns on its own, and returning on
+    /// the stop itself would break "12.50" mid-number.
+    public static func returnsToLetters(after character: String) -> Bool {
+        character == "'" || character == "\u{2019}"
+    }
+
     // MARK: - Releasing a key
 
     /// Whether a touch released at `location` should still count as a press of

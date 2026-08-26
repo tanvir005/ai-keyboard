@@ -30,7 +30,7 @@ public struct NibChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .foregroundStyle(isActive ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink)
+            .foregroundStyle(isActive ? NibStyle.Palette.onAccent : NibStyle.Palette.ink)
             .background {
                 Capsule()
                     .fill(isActive ? NibStyle.Palette.red : .clear)

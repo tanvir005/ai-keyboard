@@ -20,6 +20,8 @@ struct KeyboardView: View {
     var onHoldBegin: (KeyCap) -> Void
     var onHoldEnd: (KeyCap) -> Void
     var onAlternate: (String) -> Void
+    var onCursorBegin: () -> Void
+    var onCursorMove: (Int) -> Void
 
     private let rowSpacing: CGFloat = 8
     private let keySpacing: CGFloat = 6
@@ -54,6 +56,8 @@ struct KeyboardView: View {
                                 onHoldBegin: { onHoldBegin(cap) },
                                 onHoldEnd: { onHoldEnd(cap) },
                                 onAlternate: onAlternate,
+                                onCursorBegin: onCursorBegin,
+                                onCursorMove: onCursorMove,
                                 labelOverride: labelOverride(for: cap),
                                 action: { onKey(cap) }
                             )
@@ -148,6 +152,8 @@ struct KeyButton: View {
     var onHoldBegin: () -> Void
     var onHoldEnd: () -> Void
     var onAlternate: (String) -> Void
+    var onCursorBegin: () -> Void
+    var onCursorMove: (Int) -> Void
     /// Replaces the cap's own label. Used for the return key, whose text
     /// belongs to the field being typed into rather than to the layout.
     var labelOverride: String?
@@ -158,14 +164,24 @@ struct KeyButton: View {
     static let alternateItemHeight: CGFloat = 46
     static let alternatePadding: CGFloat = 4
 
+    /// How far the finger travels per character while the space bar is acting
+    /// as a trackpad. Roughly a third of a key width — small enough to reach
+    /// the other end of a sentence, large enough not to overshoot by one.
+    static let cursorStep: CGFloat = 10
+
     @State private var isPressed = false
     @State private var pressInside = true
     @State private var showingAlternates = false
     @State private var selectedAlternate = 0
 
+    @State private var cursorMode = false
+    @State private var cursorOriginX: CGFloat = 0
+    @State private var cursorSteps = 0
+    @State private var lastTouchX: CGFloat = 0
+
     var body: some View {
         keyLabel
-            .foregroundStyle(isActive ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink)
+            .foregroundStyle(isActive ? NibStyle.Palette.onAccent : NibStyle.Palette.ink)
             .frame(width: width, height: Self.height)
             .background {
                 RoundedRectangle(cornerRadius: 6)
@@ -198,6 +214,21 @@ struct KeyButton: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        lastTouchX = value.location.x
+
+                        if cursorMode {
+                            // The whole board is the trackpad once it opens —
+                            // a caret dragged only as far as the space bar is
+                            // wide would barely cross a word.
+                            let travelled = value.location.x - cursorOriginX
+                            let steps = Int((travelled / Self.cursorStep).rounded(.towardZero))
+                            if steps != cursorSteps {
+                                onCursorMove(steps - cursorSteps)
+                                cursorSteps = steps
+                            }
+                            return
+                        }
+
                         // Shown live so a cancel is visible: slide off and the
                         // balloon goes with it, rather than the keystroke
                         // vanishing with no explanation.
@@ -229,7 +260,12 @@ struct KeyButton: View {
                     .onEnded { value in
                         isPressed = false
 
-                        if showingAlternates {
+                        if cursorMode {
+                            // No space is typed: the hold was a request to move
+                            // the caret, not to insert anything.
+                            cursorMode = false
+                            cursorSteps = 0
+                        } else if showingAlternates {
                             let picked = alternates[min(selectedAlternate, alternates.count - 1)]
                             showingAlternates = false
                             onAlternate(picked)
@@ -251,6 +287,18 @@ struct KeyButton: View {
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.45, maximumDistance: 20)
                     .onEnded { _ in
+                        // Holding space turns the board into a trackpad for the
+                        // caret, the way the stock keyboard does. It is the only
+                        // way to reach the middle of a sentence without lifting
+                        // your hand to tap at the text.
+                        if case .space = cap {
+                            cursorOriginX = lastTouchX
+                            cursorSteps = 0
+                            cursorMode = true
+                            onCursorBegin()
+                            return
+                        }
+
                         guard !alternates.isEmpty, !cap.repeatsWhenHeld else { return }
                         selectedAlternate = baseAlternateIndex
                         showingAlternates = true
@@ -356,7 +404,7 @@ struct KeyButton: View {
                 Text(glyph)
                     .font(.system(size: 22))
                     .foregroundStyle(
-                        index == selectedAlternate ? Color(hex: 0xFBF3E8) : NibStyle.Palette.ink
+                        index == selectedAlternate ? NibStyle.Palette.onAccent : NibStyle.Palette.ink
                     )
                     .frame(width: Self.alternateItemWidth, height: Self.alternateItemHeight)
                     .background {

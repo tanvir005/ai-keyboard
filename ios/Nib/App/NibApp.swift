@@ -9,9 +9,10 @@ struct NibApp: App {
         WindowGroup {
             RootView()
                 .environment(settings)
-                // The kraft palette is a committed look, not a themeable one —
-                // the mockup renders every screen on constant paper stock.
-                .preferredColorScheme(.light)
+                // Follows the phone. The kraft palette used to be pinned to
+                // light because the mockup renders every screen on constant
+                // paper stock; the tokens now carry a dark counterpart, so the
+                // look survives the switch instead of needing to prevent it.
                 .tint(NibStyle.Palette.red)
         }
     }

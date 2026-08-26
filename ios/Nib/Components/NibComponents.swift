@@ -12,7 +12,7 @@ struct NibPrimaryButton: View {
         Button(action: action) {
             Text(title)
                 .font(NibStyle.Typography.body(16, weight: .semibold))
-                .foregroundStyle(Color(hex: 0xFBF3E8))
+                .foregroundStyle(NibStyle.Palette.onAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
                 .background(NibStyle.Palette.red, in: RoundedRectangle(cornerRadius: NibStyle.Metrics.buttonRadius))
