@@ -34,6 +34,24 @@ public enum CurrentWord {
         return word.contains(where: \.isLetter) ? word : nil
     }
 
+    /// The finished words before the caret, in the order they were written.
+    ///
+    /// A word still being typed is excluded — it is the thing being predicted,
+    /// not context for it. So "how are yo" gives back "how", "are".
+    ///
+    /// - Parameter limit: how many to return, counting back from the caret.
+    public static func preceding(in before: String, limit: Int = 2) -> [String] {
+        var words = before
+            .split(whereSeparator: { !isWordCharacter($0) })
+            .map(String.init)
+
+        if let last = before.last, isWordCharacter(last) {
+            words = Array(words.dropLast())
+        }
+
+        return Array(words.suffix(limit))
+    }
+
     /// Whether a correction should be offered for `word` at all.
     ///
     /// Filters the cases where a spell checker is confidently unhelpful: single

@@ -28,16 +28,23 @@ struct SuggestionStrip: View {
             if suggestions.isEmpty {
                 Color.clear
             } else {
-                slot("\u{201C}\(suggestions.typed)\u{201D}", emphasised: false) {
-                    onKeepTyped(suggestions.typed)
+                // No typed word means these are predictions of what comes
+                // *next*, offered before anything has been typed — so there is
+                // nothing to quote, and no one candidate to prefer over the
+                // others.
+                if !suggestions.typed.isEmpty {
+                    slot("\u{201C}\(suggestions.typed)\u{201D}", emphasised: false) {
+                        onKeepTyped(suggestions.typed)
+                    }
                 }
 
                 ForEach(Array(suggestions.candidates.enumerated()), id: \.offset) { index, word in
-                    divider
-                    // Only the first is emphasised: it is the one inline
-                    // completion is already showing in the field, so the two
-                    // must agree about which word is being offered.
-                    slot(word, emphasised: index == 0) { onPick(word) }
+                    if index > 0 || !suggestions.typed.isEmpty {
+                        divider
+                    }
+                    slot(word, emphasised: index == 0 && !suggestions.typed.isEmpty) {
+                        onPick(word)
+                    }
                 }
             }
         }

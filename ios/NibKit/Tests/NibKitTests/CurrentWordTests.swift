@@ -54,6 +54,31 @@ final class CurrentWordTests: XCTestCase {
         }
     }
 
+    // MARK: - Context for prediction
+
+    func testFindsTheFinishedWordsBehindTheCaret() {
+        XCTAssertEqual(CurrentWord.preceding(in: "how are you "), ["are", "you"])
+        XCTAssertEqual(CurrentWord.preceding(in: "hello "), ["hello"])
+        XCTAssertEqual(CurrentWord.preceding(in: "one two three ", limit: 3), ["one", "two", "three"])
+    }
+
+    /// A half-typed word is what we are predicting, not context for it.
+    func testTheWordStillBeingTypedIsNotContext() {
+        XCTAssertEqual(CurrentWord.preceding(in: "how are yo"), ["how", "are"])
+        XCTAssertEqual(CurrentWord.preceding(in: "hello wor"), ["hello"])
+    }
+
+    func testPunctuationEndsAWordForContextToo() {
+        XCTAssertEqual(CurrentWord.preceding(in: "hello, "), ["hello"])
+        XCTAssertEqual(CurrentWord.preceding(in: "done. "), ["done"])
+    }
+
+    func testNoContextAtTheStartOfAField() {
+        XCTAssertTrue(CurrentWord.preceding(in: "").isEmpty)
+        XCTAssertTrue(CurrentWord.preceding(in: "   ").isEmpty)
+        XCTAssertTrue(CurrentWord.preceding(in: "hel").isEmpty)
+    }
+
     // MARK: - Whether it is worth correcting
 
     func testOrdinaryWordsAreCorrectable() {
