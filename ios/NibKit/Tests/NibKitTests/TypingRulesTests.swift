@@ -43,6 +43,34 @@ final class TypingRulesTests: XCTestCase {
         XCTAssertTrue(TypingRules.shouldPromoteSpaceToSentenceBreak(before: "nice 👨‍👩‍👧‍👦 "))
     }
 
+    // MARK: - Finishing a word
+
+    func testSpaceAndPunctuationFinishAWord() {
+        for character in [" ", ".", ",", "!", "?", ";", ":", "\n"] {
+            XCTAssertTrue(
+                TypingRules.finishesAWord(character),
+                "\(character.debugDescription) should end a word"
+            )
+        }
+    }
+
+    /// The gap this rule closes: a message ending "hello!" used to teach the
+    /// keyboard nothing, because only a space counted and nobody types one
+    /// before pressing send.
+    func testLettersAndDigitsDoNotFinishAWord() {
+        for character in ["a", "Z", "5", "'", "-"] {
+            XCTAssertFalse(
+                TypingRules.finishesAWord(character),
+                "\(character) should not end a word"
+            )
+        }
+    }
+
+    func testOnlySingleCharactersAreConsidered() {
+        XCTAssertFalse(TypingRules.finishesAWord(""))
+        XCTAssertFalse(TypingRules.finishesAWord(". "))
+    }
+
     // MARK: - Releasing a key
 
     private let key = CGSize(width: 33, height: 42)

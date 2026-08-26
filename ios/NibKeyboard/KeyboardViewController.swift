@@ -46,6 +46,24 @@ final class KeyboardViewController: UIInputViewController {
     private let spelling = SpellSuggestions()
     private let nextWords = NextWordStore()
 
+    /// The last thing that was in the field, kept so the final word can still
+    /// be learned after the field empties.
+    ///
+    /// A send leaves nothing behind to read — by the time we notice, the text
+    /// is gone. So it is remembered on the way past.
+    private var trailingSnapshot: String?
+
+    /// Distinguishes a message being sent from one being deleted.
+    ///
+    /// Both end with an empty field, but only one of them means the user
+    /// finished the word. Someone who backspaces out of "Assalamualaik" has
+    /// abandoned it, and learning it would poison the table with half-words.
+    private var lastKeyWasDelete = false
+
+    /// How long the strip stays after it has nothing left to say.
+    private static let suggestionLinger: TimeInterval = 0.5
+    private var hideSuggestions: DispatchWorkItem?
+
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -70,6 +88,14 @@ final class KeyboardViewController: UIInputViewController {
             onHeightChange: { [weak self] in self?.updateHeight($0) }
         )
 
+        // The strip below the board — globe and dictation — is the system's,
+        // not ours, and it takes its colour from the input view it sits on.
+        // Painting that view is the only lever there is: if the system draws
+        // that bar into a view of its own instead, this changes nothing and it
+        // stays grey. Harmless either way, since our own content covers every
+        // other part of this view.
+        view.backgroundColor = UIColor(NibStyle.Palette.keyboardBackground)
+
         host = UIHostingController(rootView: root)
         host.view.backgroundColor = .clear
         addChild(host)
@@ -84,11 +110,16 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        // 32pt suggestion strip + 44pt tool row + 226pt of keys. Fixed, and it
-        // has to stay fixed: the input view does not resize in step with its
-        // content, so a board that grows mid-typing overflows the space the
-        // system gave it and clips at both ends.
-        let height = view.heightAnchor.constraint(equalToConstant: 302)
+        // The resting height: 44pt tool row + 226pt of keys, no strip. It grows
+        // by the strip's 32pt when there is something to suggest.
+        //
+        // This was fixed for a while, because the input view does not resize in
+        // step with its content and the board overflowed. What makes it safe
+        // now is that nothing inside insists on its size any more — key height
+        // is derived from the room available and both pages take a ceiling — so
+        // a resize that arrives late compresses the keys a little instead of
+        // pushing the bottom row off the screen.
+        let height = view.heightAnchor.constraint(equalToConstant: 270)
         // Below required so the system can still resize us without conflicts.
         height.priority = .defaultHigh
         height.isActive = true
@@ -127,6 +158,8 @@ final class KeyboardViewController: UIInputViewController {
             host.rootView.returnLabel = label
         }
 
+        noticeFieldEmptying()
+
         var words = spelling.suggestions(before: contextBeforeCaret)
 
         // Nothing to correct or complete usually means the caret is sitting
@@ -145,10 +178,34 @@ final class KeyboardViewController: UIInputViewController {
             }
         }
 
-        if host.rootView.suggestions != words {
-            host.rootView.suggestions = words
+        publish(words)
+    }
+
+    /// Suggestions appear at once and leave on a delay.
+    ///
+    /// Ordinary typing crosses in and out of having something to offer several
+    /// times within a single word. Hiding the moment there is nothing makes the
+    /// row strobe, and a strip that flashes under the thumb is more
+    /// distracting than one that simply sits there. Arriving late would be
+    /// worse than useless, so only the departure waits.
+    private func publish(_ words: WordSuggestions) {
+        hideSuggestions?.cancel()
+        hideSuggestions = nil
+
+        guard words.isEmpty else {
+            if host.rootView.suggestions != words {
+                host.rootView.suggestions = words
+            }
+            return
         }
 
+        guard !host.rootView.suggestions.isEmpty else { return }
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.host.rootView.suggestions = WordSuggestions()
+        }
+        hideSuggestions = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.suggestionLinger, execute: work)
     }
 
     /// Swaps the word under the caret for a tapped suggestion.
@@ -178,6 +235,10 @@ final class KeyboardViewController: UIInputViewController {
         // A keyboard dismissed mid-hold would otherwise leave the repeater
         // firing into a document that is no longer ours.
         cancelRepeating()
+        // The keyboard is leaving with text still in the field: this is the
+        // last chance to learn the word the user stopped on.
+        hideSuggestions?.cancel()
+        harvestTrailingWord()
         // Writes are batched, so this is where the last few are kept rather
         // than lost with the process.
         nextWords.save()
@@ -186,7 +247,17 @@ final class KeyboardViewController: UIInputViewController {
     private func updateHeight(_ height: CGFloat) {
         guard height > 0, let constraint = heightConstraint else { return }
         guard abs(constraint.constant - height) > 1 else { return }
+
         constraint.constant = height
+
+        // Matched to the strip's own fade so the board and its contents move
+        // as one thing. Left unanimated, the keyboard snaps to its new size
+        // while the strip is still fading in, and the keys jump under the
+        // thumb — which is the part that reads as disruptive, more than the
+        // strip appearing at all.
+        UIView.animate(withDuration: 0.16) {
+            self.view.superview?.layoutIfNeeded()
+        }
     }
 
     // MARK: - Press feedback
@@ -263,6 +334,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func repeatTick() {
+        lastKeyWasDelete = true
         // Once the field is empty the hold has nothing left to do. Stopping
         // here rather than ticking on also means the finger can stay down
         // without the keyboard clicking at an empty field.
@@ -380,6 +452,44 @@ final class KeyboardViewController: UIInputViewController {
         documentChanged()
     }
 
+    /// Watches for the field going empty, which is what a send looks like from
+    /// in here — and takes the last word with it on the way out.
+    private func noticeFieldEmptying() {
+        let current = contextBeforeCaret ?? ""
+
+        if current.isEmpty {
+            // Emptied by a delete is somebody changing their mind, not
+            // finishing a sentence.
+            if trailingSnapshot != nil, !lastKeyWasDelete {
+                harvestTrailingWord()
+            }
+            trailingSnapshot = nil
+        } else {
+            trailingSnapshot = current
+        }
+
+        lastKeyWasDelete = false
+    }
+
+    /// Learns the word the caret is still sitting on.
+    ///
+    /// `learnFinishedWord` only ever sees words a separator has closed, which
+    /// silently excluded the last word of every message — nobody types a
+    /// trailing space before pressing send, and that word is the one most worth
+    /// predicting. This is the other half: called when the message leaves, not
+    /// when the next word begins.
+    private func harvestTrailingWord() {
+        guard let context = trailingSnapshot ?? contextBeforeCaret else { return }
+        guard let word = CurrentWord.trailing(in: context) else { return }
+
+        nextWords.learn(
+            previous: CurrentWord.preceding(in: context, limit: 2),
+            next: word,
+            in: textDocumentProxy
+        )
+        trailingSnapshot = nil
+    }
+
     /// Feeds the word just completed, and the two before it, to the learned
     /// table. The store decides whether this field is one we may remember.
     private func learnFinishedWord() {
@@ -444,6 +554,9 @@ final class KeyboardViewController: UIInputViewController {
         switch cap {
         case .character(let c):
             textDocumentProxy.insertText(c)
+            // Punctuation ends a word as surely as a space does, and "hello!"
+            // is a whole message.
+            if TypingRules.finishesAWord(c) { learnFinishedWord() }
         case .space:
             if promoteDoubleSpace() { break }
             textDocumentProxy.insertText(" ")
@@ -452,8 +565,14 @@ final class KeyboardViewController: UIInputViewController {
             // one is complete enough to be worth remembering.
             learnFinishedWord()
         case .newline:
+            // Return is Send in most of the apps this keyboard lives in, so the
+            // word before it is the last thing typed — and the last chance to
+            // learn it.
+            harvestTrailingWord()
             textDocumentProxy.insertText("\n")
+            learnFinishedWord()
         case .backspace:
+            lastKeyWasDelete = true
             textDocumentProxy.deleteBackward()
         case .globe:
             advanceToNextInputMode()
@@ -513,12 +632,14 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Always present. See SuggestionStrip for why it cannot come and go.
-            SuggestionStrip(
-                suggestions: suggestions,
-                onPick: onSuggestion,
-                onKeepTyped: onKeepTyped
-            )
+            if !suggestions.isEmpty {
+                SuggestionStrip(
+                    suggestions: suggestions,
+                    onPick: onSuggestion,
+                    onKeepTyped: onKeepTyped
+                )
+                .transition(.opacity)
+            }
             AccessoryBarView(model: model)
 
             if showingEmoji {
@@ -563,6 +684,11 @@ struct KeyboardRootView: View {
                 .frame(maxHeight: keyAreaHeight)
             }
         }
+        // Only the strip's own arrival and departure are animated, keyed on
+        // whether there is anything to show. Animating on the words themselves
+        // would cross-fade the row every time a keystroke changed a suggestion,
+        // which is movement where the user is trying to read.
+        .animation(.easeOut(duration: 0.16), value: suggestions.isEmpty)
         .onAppear {
             // The field may already contain text — starting shifted regardless
             // capitalises the middle of somebody's sentence.

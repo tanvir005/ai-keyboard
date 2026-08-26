@@ -38,7 +38,7 @@ struct KeyboardView: View {
             let rows = KeyboardLayout.rows(for: mode, shifted: shifted, needsGlobe: needsGlobe)
             let keyHeight = keyHeight(forBoardHeight: geo.size.height, rows: rows.count)
             VStack(spacing: rowSpacing) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
                     let widths = row.map { width(for: $0, in: row, totalWidth: geo.size.width) }
                     // Rows are centred by the VStack, so the inset row's origin
                     // is not the board's edge — the alternates row has to be
@@ -56,6 +56,12 @@ struct KeyboardView: View {
                                 keyCenterX: centerX(at: index, widths: widths, rowOrigin: rowOrigin),
                                 boardWidth: geo.size.width,
                                 boardInset: sideInset,
+                                hitSlop: hitSlop(
+                                    row: rowIndex,
+                                    of: rows.count,
+                                    column: index,
+                                    of: row.count
+                                ),
                                 onPress: { onPress(cap) },
                                 onHoldBegin: { onHoldBegin(cap) },
                                 onHoldEnd: { onHoldEnd(cap) },
@@ -77,6 +83,21 @@ struct KeyboardView: View {
             .padding(.top, topInset)
             .padding(.bottom, bottomInset)
         }
+    }
+
+    /// How far a key's touch area reaches past its own edges.
+    ///
+    /// Half the gap on any side with a neighbour, so the gaps between keys
+    /// belong to the nearer of the two. Nothing at all on the outside edges —
+    /// the board's margin belongs to no key, and the strip under the bottom
+    /// row is the one a thumb finds by accident.
+    private func hitSlop(row: Int, of rowCount: Int, column: Int, of columnCount: Int) -> EdgeInsets {
+        EdgeInsets(
+            top: row == 0 ? 0 : rowSpacing / 2,
+            leading: column == 0 ? 0 : keySpacing / 2,
+            bottom: row == rowCount - 1 ? 0 : rowSpacing / 2,
+            trailing: column == columnCount - 1 ? 0 : keySpacing / 2
+        )
     }
 
     /// Key height, from whatever room the board actually got.
@@ -155,6 +176,28 @@ struct KeyboardView: View {
     }
 }
 
+/// A key's touch area: its own rectangle, grown only on the sides where a
+/// neighbouring key sits.
+///
+/// Growing on those sides means the gaps between keys belong to somebody, so a
+/// thumb landing on a boundary still types rather than falling down a crack.
+/// Not growing at the board's edges matters just as much: there is no
+/// neighbour out there to disambiguate, only margin — and a margin that clicks
+/// is a keyboard reporting a keystroke nobody made. The strip under the space
+/// bar is the one people find.
+private struct KeyHitArea: Shape {
+    let insets: EdgeInsets
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(
+            x: rect.minX - insets.leading,
+            y: rect.minY - insets.top,
+            width: rect.width + insets.leading + insets.trailing,
+            height: rect.height + insets.top + insets.bottom
+        ))
+    }
+}
+
 /// A single key.
 ///
 /// Both feedback channels fire on touch-*down*, not on release. That ordering is
@@ -170,6 +213,10 @@ struct KeyButton: View {
     var keyCenterX: CGFloat = 0
     var boardWidth: CGFloat = 0
     var boardInset: CGFloat = 6
+    /// How far this key's touch area reaches past its own edges — half the gap
+    /// on any side with a neighbour, nothing on any side facing the board's
+    /// margin. See `KeyHitArea`.
+    var hitSlop = EdgeInsets()
     var onPress: () -> Void
     var onHoldBegin: () -> Void
     var onHoldEnd: () -> Void
@@ -236,6 +283,17 @@ struct KeyButton: View {
             }
             .zIndex(isPressed ? 1 : 0)
             .animation(.easeOut(duration: 0.07), value: isPressed)
+            // Says exactly what counts as touching this key, rather than
+            // leaving it to whatever SwiftUI infers from the label plus the
+            // slop iOS adds around small targets. Without it a tap in the gap
+            // between two keys was ambiguous: near enough to trigger the click
+            // and the tap, not always near enough to type anything — feedback
+            // reporting a keystroke that never happened.
+            //
+            // Expanded by half the gap so the gaps belong to the nearest key,
+            // which is what the stock keyboard does and why its edges never
+            // feel dead. Nothing outside the rows responds at all.
+            .contentShape(KeyHitArea(insets: hitSlop))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in

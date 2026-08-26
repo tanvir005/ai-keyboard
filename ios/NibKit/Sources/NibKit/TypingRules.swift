@@ -32,6 +32,19 @@ public enum TypingRules {
         return true
     }
 
+    // MARK: - Finishing a word
+
+    /// Whether typing `character` ends the word before it.
+    ///
+    /// A space is the obvious one, and for a while it was the only one — which
+    /// quietly meant the last word of every message was never learned, because
+    /// nobody types a trailing space before pressing send. The word most worth
+    /// predicting is the one that ends the sentence.
+    public static func finishesAWord(_ character: String) -> Bool {
+        guard let single = character.first, character.count == 1 else { return false }
+        return single.isWhitespace || single.isNewline || ".,!?;:".contains(single)
+    }
+
     // MARK: - Coming back from the symbols page
 
     /// Whether typing `character` should send the board back to letters.

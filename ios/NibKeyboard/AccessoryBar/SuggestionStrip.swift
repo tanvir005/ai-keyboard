@@ -9,13 +9,17 @@ import NibKit
 /// keep a word the dictionary does not know; tapping it dismisses the rest
 /// until you move on to another word.
 ///
-/// Always present, and deliberately the shortest row on the board.
+/// Shown only when it has something to say, and deliberately the shortest row
+/// on the board — 32pt, so its arrival moves the keys as little as possible.
 ///
-/// Showing it only when it had words was tried and reverted: the input view
-/// does not grow in step with its content, so the board overflowed its own
-/// bounds — clipping the words at the top and the bottom key row at the
-/// bottom. A keyboard whose height never changes cannot get out of step with
-/// the space the system has given it.
+/// This was fixed-height for a while. Showing it conditionally overflowed the
+/// board, because the input view does not resize in step with its content and
+/// everything inside insisted on its own size. Both of those are now flexible,
+/// so a late resize costs a few points of key height rather than the bottom
+/// row of the keyboard.
+///
+/// The parent decides whether to show this, and holds it for a moment after it
+/// empties. It is never rendered empty.
 struct SuggestionStrip: View {
     let suggestions: WordSuggestions
     var onPick: (String) -> Void
