@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node smoke.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.121.0",
