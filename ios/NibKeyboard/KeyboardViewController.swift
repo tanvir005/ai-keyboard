@@ -68,6 +68,11 @@ final class KeyboardViewController: UIInputViewController {
 
     private var hideSuggestions: DispatchWorkItem?
 
+    /// Long enough to coalesce a burst of typing, short enough that nobody
+    /// waiting for a suggestion notices it.
+    private static let suggestionDelay: TimeInterval = 0.06
+    private var pendingSuggestions: DispatchWorkItem?
+
     /// What the learned table last offered, kept so the letters of the next
     /// word can narrow it instead of discarding it. See `documentChanged`.
     private var offered: [String] = []
@@ -191,6 +196,37 @@ final class KeyboardViewController: UIInputViewController {
     /// not reliably cover each other — a caret moved by the user arrives only
     /// through the first, and the ordering of the second is ours to control.
     private func documentChanged() {
+        // Cheap and order-sensitive, so it runs now: it watches for the field
+        // emptying, and deferring it would let several keystrokes pass before
+        // it noticed a send.
+        noticeFieldEmptying()
+        scheduleSuggestions()
+    }
+
+    /// Coalesces the suggestion pass and keeps it off the typing path.
+    ///
+    /// It used to run on every edit, from two places — `handle` and
+    /// `textDidChange` both fire for one keypress — so a single letter cost six
+    /// trips through `UITextChecker`, which scans a dictionary each time. At
+    /// four letters a second that is two dozen scans a second on the thread
+    /// drawing the keyboard, and it is what made fast typing lag.
+    ///
+    /// Nothing here is wanted *during* a keystroke. A suggestion that arrives a
+    /// sixteenth of a second after the finger lifts is indistinguishable from
+    /// one that arrives instantly; computing it eight times a second is not.
+    private func scheduleSuggestions() {
+        pendingSuggestions?.cancel()
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            pendingSuggestions = nil
+            refreshSuggestions()
+        }
+        pendingSuggestions = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.suggestionDelay, execute: work)
+    }
+
+    private func refreshSuggestions() {
         // The keyboard outlives the field it was opened for: moving from a chat
         // box to a search box has to relabel return, or it keeps promising to
         // send something.
@@ -199,7 +235,6 @@ final class KeyboardViewController: UIInputViewController {
             host.rootView.returnLabel = label
         }
 
-        noticeFieldEmptying()
 
         let context = contextBeforeCaret ?? ""
 
@@ -313,6 +348,7 @@ final class KeyboardViewController: UIInputViewController {
         // The keyboard is leaving with text still in the field: this is the
         // last chance to learn the word the user stopped on.
         hideSuggestions?.cancel()
+        pendingSuggestions?.cancel()
         harvestTrailingWord()
         // Writes are batched, so this is where the last few are kept rather
         // than lost with the process.
