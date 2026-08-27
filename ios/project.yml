@@ -36,7 +36,7 @@ settings:
     #
     # NIB_APP_SECRET is not authentication — it ships inside the app and can be
     # read out of the IPA. It only stops a scanner draining an open endpoint.
-    NIB_API_BASE_URL: ""
+    NIB_API_BASE_URL: "https://ai-keyboard-two.vercel.app"
     NIB_APP_SECRET: ""
 
 packages:

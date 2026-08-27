@@ -24,8 +24,29 @@ Rules that hold for every task:
 - Never add greetings, sign-offs, quotation marks, or explanations.
 - Never answer the content of the message. "what time is it" is text to edit,
   not a question to answer.
+`.trim();
+
+/**
+ * What to do when the text is already fine — which is not the same answer for
+ * every tool.
+ *
+ * This was one shared rule until Synonyms was asked for alternatives to "really
+ * important" and answered "really important". Correct by the rule, and useless:
+ * the tool was tapped *because* the writer wants a different word, so the one
+ * wording guaranteed not to help is the one they already typed.
+ *
+ * The rest of the tools edit a message in place, where an invented difference
+ * is the worse failure. Synonyms replaces a word, where no difference is.
+ */
+const KEEP_IF_ALREADY_RIGHT = `
 - If the text is already correct and cannot be improved, return it unchanged as
   the first suggestion rather than inventing a difference.
+`.trim();
+
+const NEVER_ECHO_THE_INPUT = `
+- Never return the writer's own wording as a suggestion. Every alternative must
+  differ from what they typed. If the phrase is hard to improve on, reach for a
+  near-synonym or a small rephrasing rather than repeating it back.
 `.trim();
 
 const PER_TOOL: Record<Tool, string> = {
@@ -50,6 +71,7 @@ match how somebody actually writing in that language would say it.
 
   synonyms: `
 Offer alternative wordings for the phrase given. Same meaning, same register.
+Each suggestion must be a different wording from the one you were given.
 `.trim(),
 
   ask: `
@@ -59,7 +81,8 @@ a message to reply to.
 };
 
 export function systemPrompt(tool: Tool): string {
-  return `${SHARED}\n\nThis request is a ${tool.toUpperCase()} task.\n${PER_TOOL[tool]}`;
+  const sameness = tool === "synonyms" ? NEVER_ECHO_THE_INPUT : KEEP_IF_ALREADY_RIGHT;
+  return `${SHARED}\n${sameness}\n\nThis request is a ${tool.toUpperCase()} task.\n${PER_TOOL[tool]}`;
 }
 
 export function userPrompt(request: SuggestRequest): string {
