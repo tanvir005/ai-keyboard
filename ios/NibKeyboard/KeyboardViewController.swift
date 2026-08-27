@@ -172,6 +172,12 @@ final class KeyboardViewController: UIInputViewController {
         // the switch would look broken even where the App Group works.
         host.rootView.showsPeriod = SharedSettings.shared.showPeriodKey
         host.rootView.showsNumberRow = SharedSettings.shared.showNumberRow
+
+        // A fresh visit starts without the strip. It is pinned for the length
+        // of a session, not for the life of the extension — otherwise it would
+        // be there before the first word of every message from now on.
+        host.rootView.showsStrip = false
+        host.rootView.suggestions = WordSuggestions()
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
@@ -251,6 +257,9 @@ final class KeyboardViewController: UIInputViewController {
         guard words.isEmpty else {
             hideSuggestions?.cancel()
             hideSuggestions = nil
+
+            // Earns its place once and keeps it for the rest of the session.
+            host.rootView.showsStrip = true
 
             if host.rootView.suggestions != words {
                 host.rootView.suggestions = words
@@ -664,6 +673,11 @@ struct KeyboardRootView: View {
     var showsPeriod: Bool
     var showsNumberRow: Bool
     var suggestions: WordSuggestions
+    /// Once the strip has had something to say it keeps its place until the
+    /// keyboard closes. It used to come and go with every word, which meant the
+    /// board changed height a dozen times a sentence — correct each time, and
+    /// exhausting to type on.
+    var showsStrip = false
     var onSuggestion: (String) -> Void
     var onKeepTyped: (String) -> Void
     var onCursorBegin: () -> Void
@@ -687,7 +701,7 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !suggestions.isEmpty {
+            if showsStrip {
                 SuggestionStrip(
                     suggestions: suggestions,
                     onPick: onSuggestion,
@@ -768,7 +782,7 @@ struct KeyboardRootView: View {
         // So SwiftUI changes the layout in one step and the system animates the
         // result. One animator, one curve — and it is the system's own, which
         // is the one the rest of the keyboard already moves to.
-        .animation(nil, value: suggestions.isEmpty)
+        .animation(nil, value: showsStrip)
     }
 
     /// Shift and page switching are view state; everything else is a document

@@ -491,21 +491,24 @@ struct KeyButton: View {
 
         var row = KeyAlternates.row(for: character)
 
-        // The digit joins the held row, and opens one on a key that had none —
-        // holding `q` does nothing without it. Second, after the letter itself,
-        // because the letter is still what the key is for.
+        // The digit leads, and is what a hold-and-release gives you.
+        //
+        // Holding a key is already a deliberate act, and the digit printed in
+        // its corner is the reason for it — asking for a second deliberate act,
+        // a drag, to reach the thing advertised on the key would make the hint
+        // a decoration. The letter stays in the row, one place along, for
+        // anyone who opened it by accident.
         if let hint {
-            if row.isEmpty {
-                row = [character, hint]
-            } else {
-                row.insert(hint, at: 1)
-            }
+            row = row.isEmpty ? [hint, character] : [hint] + row
         }
 
         return opensLeftward ? row.reversed() : row
     }
 
-    /// Where the finger starts: on the glyph already being typed.
+    /// Where the finger starts: on the first glyph in the row.
+    ///
+    /// That is the letter on an ordinary key, and the digit on a key carrying a
+    /// hint — which is what makes holding `q` type `1` without a drag.
     private var baseAlternateIndex: Int {
         opensLeftward ? max(alternates.count - 1, 0) : 0
     }
