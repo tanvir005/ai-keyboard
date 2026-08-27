@@ -17,7 +17,7 @@ struct AccessoryBarView: View {
                 ToolChipRow(model: model)
             }
         }
-        .background(NibStyle.Palette.keyboardAccessory)
+        .background(Color.clear)
     }
 
     // MARK: - Result

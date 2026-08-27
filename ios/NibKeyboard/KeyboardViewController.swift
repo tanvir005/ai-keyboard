@@ -85,6 +85,31 @@ final class KeyboardViewController: UIInputViewController {
     private var barHeight: CGFloat = 44
 
 
+    /// Asks for the system's own keyboard backdrop rather than painting one.
+    ///
+    /// Matching the strip below the board by colour could not work: that strip
+    /// is not a colour. It is a translucent material sampling whatever is
+    /// behind it, which is why it looked warm over one app's cream background
+    /// and neutral over another's white, and why every fixed grey tried so far
+    /// was visibly a different surface.
+    ///
+    /// `.keyboard` is the same style the system uses for that strip, so the two
+    /// match by construction instead of by resemblance — and go on matching in
+    /// the dark, and in whatever Apple changes next, because it is one material
+    /// rather than two guesses at it.
+    override func loadView() {
+        let input = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+
+        // Without this an input view takes whatever height the system hands it
+        // and ignores the constraint asking for more. That is why the board
+        // never grew for the suggestion strip: the request was being made and
+        // quietly declined, so the strip drew above the top edge and was cut in
+        // half. Nothing to do with what the strip or the keys were asking for.
+        input.allowsSelfSizing = true
+
+        view = input
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -108,13 +133,9 @@ final class KeyboardViewController: UIInputViewController {
             onBarHeight: { [weak self] in self?.barHeightChanged($0) }
         )
 
-        // The strip below the board — globe and dictation — is the system's,
-        // not ours, and it takes its colour from the input view it sits on.
-        // Painting that view is the only lever there is: if the system draws
-        // that bar into a view of its own instead, this changes nothing and it
-        // stays grey. Harmless either way, since our own content covers every
-        // other part of this view.
-        view.backgroundColor = UIColor(NibStyle.Palette.keyboardBackground)
+        // Nothing painted here: `loadView` asked for the keyboard material and
+        // covering it would defeat the point.
+        view.backgroundColor = .clear
 
         host = UIHostingController(rootView: root)
         host.view.backgroundColor = .clear
@@ -139,8 +160,13 @@ final class KeyboardViewController: UIInputViewController {
         // height at all — the keys silently paid for the strip. Fixed, the
         // content has one honest ideal height and the board grows to match.
         let height = view.heightAnchor.constraint(equalToConstant: 270)
-        // Below required so the system can still resize us without conflicts.
-        height.priority = .defaultHigh
+
+        // 999, not 750. `.defaultHigh` sounds like the safe choice and is the
+        // wrong one here: the system's own sizing sits above it, so the request
+        // loses every time and the board stays whatever height it was given.
+        // One below required is high enough to win and still low enough to
+        // yield rather than raise a conflict when the system genuinely insists.
+        height.priority = UILayoutPriority(999)
         height.isActive = true
         heightConstraint = height
     }
@@ -782,7 +808,10 @@ struct KeyboardRootView: View {
         // direction there is room in and the direction the board grows anyway.
         // The keys stay where they are whatever the height is doing.
         .frame(maxHeight: .infinity, alignment: .bottom)
-        .background(NibStyle.Palette.keyboardBackground)
+        // Clear, so the keyboard material from `loadView` is what shows through.
+        // Keys stay opaque — they have to read as objects on a surface, not as
+        // holes in it.
+        .background(Color.clear)
     }
 
     /// Shift and page switching are view state; everything else is a document
