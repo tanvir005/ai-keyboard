@@ -20,9 +20,13 @@ of the app, nothing in the keyboard to update.
 | `AI_MODEL` | optional; overrides that provider's default |
 
 Defaults are the cheapest model in each family — `claude-haiku-4-5`,
-`gpt-5-nano`, `gemini-2.5-flash-lite`. Fix is a bounded task, and if the prompt
+`gpt-5-nano`, `gemini-3.5-flash-lite`. Fix is a bounded task, and if the prompt
 reads well on the cheapest model then the prompt is doing the work rather than
 the model covering for it.
+
+Model names age out. When a provider answers "no longer available to new
+users", nothing is broken except a string — set `AI_MODEL` to the replacement
+it names and redeploy.
 
 Each SDK reads its own key, so several can sit side by side and only the
 selected one is used:
