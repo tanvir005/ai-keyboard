@@ -42,6 +42,10 @@ public enum NibAPIError: Error, Equatable, Sendable {
     case noFullAccess
     case network
     case empty
+    /// The service is reachable but refused us — no URL set for this build, or
+    /// a key it does not accept. Ours to fix, not the user's, so it must not read
+    /// as a connection problem they could waste time troubleshooting.
+    case notConfigured
 
     public var userMessage: String {
         switch self {
@@ -49,14 +53,18 @@ public enum NibAPIError: Error, Equatable, Sendable {
         case .noFullAccess: "Turn on Full Access to use Nib's tools."
         case .network: "Couldn't reach Nib. Check your connection."
         case .empty: "Type something first."
+        case .notConfigured: "Nib's AI isn't set up on this build yet."
         }
     }
 }
 
 /// The seam between the keyboard and whatever is producing suggestions.
 ///
-/// Today that is `StubAPIClient`. When the backend lands, a `LiveAPIClient`
-/// conforming to this protocol drops in with no UI changes.
+/// Two conform to it: `StubAPIClient`, which invents suggestions locally, and
+/// `LiveAPIClient`, which asks Nib's own service. `RoutedAPIClient` splits
+/// traffic between them per tool — see `NibBackend.makeClient()`. The UI has
+/// never known which it is talking to, which is what makes switching a
+/// one-line change.
 public protocol NibAPIClient: Sendable {
     func suggest(
         tool: NibTool,

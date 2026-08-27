@@ -48,7 +48,7 @@ final class ToolbarViewModel {
 
     init(
         text: KeyboardTextInterface?,
-        client: NibAPIClient = StubAPIClient(),
+        client: NibAPIClient = NibBackend.makeClient(),
         settings: SharedSettings = .shared
     ) {
         self.text = text
