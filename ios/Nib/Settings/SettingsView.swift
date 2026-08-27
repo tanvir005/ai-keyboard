@@ -73,6 +73,12 @@ struct SettingsView: View {
                 }
                 GroupedRow(title: "Sound") { Toggle("", isOn: toggle(\.soundEnabled)).labelsHidden() }
                 GroupedRow(title: "Haptics") { Toggle("", isOn: toggle(\.hapticsEnabled)).labelsHidden() }
+                GroupedRow(title: "Show \u{201C}.\u{201D} on keyboard") {
+                    Toggle("", isOn: toggle(\.showPeriodKey)).labelsHidden()
+                }
+                GroupedRow(title: "Show number row") {
+                    Toggle("", isOn: toggle(\.showNumberRow)).labelsHidden()
+                }
                 GroupedRow(
                     title: "Prediction",
                     subtitle: "Suggests the next word from phrases you type often. Learned on this device and never sent anywhere — never from password fields, and never anything containing a number."
