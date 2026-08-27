@@ -72,3 +72,24 @@ jobs:
             echo "Build failed — see annotations above."
             exit 1
           fi
+
+  # The backend gets the same treatment the app does, for the same reason: it is
+  # authored on a machine that cannot run it. A typecheck is not a test, but it
+  # catches the class of mistake most likely here — three provider SDKs whose
+  # exact call shapes are easy to misremember.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        working-directory: backend
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        working-directory: backend
+        run: npm run typecheck
