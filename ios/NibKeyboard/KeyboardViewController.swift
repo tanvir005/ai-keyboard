@@ -98,7 +98,16 @@ final class KeyboardViewController: UIInputViewController {
     /// the dark, and in whatever Apple changes next, because it is one material
     /// rather than two guesses at it.
     override func loadView() {
-        view = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+        let input = UIInputView(frame: .zero, inputViewStyle: .keyboard)
+
+        // Without this an input view takes whatever height the system hands it
+        // and ignores the constraint asking for more. That is why the board
+        // never grew for the suggestion strip: the request was being made and
+        // quietly declined, so the strip drew above the top edge and was cut in
+        // half. Nothing to do with what the strip or the keys were asking for.
+        input.allowsSelfSizing = true
+
+        view = input
     }
 
     override func viewDidLoad() {
@@ -151,8 +160,13 @@ final class KeyboardViewController: UIInputViewController {
         // height at all — the keys silently paid for the strip. Fixed, the
         // content has one honest ideal height and the board grows to match.
         let height = view.heightAnchor.constraint(equalToConstant: 270)
-        // Below required so the system can still resize us without conflicts.
-        height.priority = .defaultHigh
+
+        // 999, not 750. `.defaultHigh` sounds like the safe choice and is the
+        // wrong one here: the system's own sizing sits above it, so the request
+        // loses every time and the board stays whatever height it was given.
+        // One below required is high enough to win and still low enough to
+        // yield rather than raise a conflict when the system genuinely insists.
+        height.priority = UILayoutPriority(999)
         height.isActive = true
         heightConstraint = height
     }
