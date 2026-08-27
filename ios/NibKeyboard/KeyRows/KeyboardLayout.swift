@@ -103,20 +103,28 @@ enum KeyboardLayout {
         showsPeriod: Bool = false,
         showsNumberRow: Bool = false
     ) -> [[KeyCap]] {
-        let rows: [[KeyCap]] = switch mode {
+        switch mode {
         case .letters: letters(shifted: shifted, needsGlobe: needsGlobe, showsPeriod: showsPeriod)
         case .numbers: numbers(needsGlobe: needsGlobe, showsPeriod: showsPeriod)
         case .symbols: symbols(needsGlobe: needsGlobe, showsPeriod: showsPeriod)
         }
-
-        // Only above the letters. The numbers and symbols pages already have
-        // digits, and a second set would be a row of duplicates.
-        guard showsNumberRow, mode == .letters else { return rows }
-        return [digits] + rows
     }
 
-    private static let digits: [KeyCap] =
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map { KeyCap.character($0) }
+    /// The digit that belongs to a letter on the top row: 1 over `q`, 0 over
+    /// `p`.
+    ///
+    /// Drawn small in the corner of the key rather than given a row of its own,
+    /// which is what Gboard does — the digit is an *alternate* of the letter,
+    /// reached by holding it. A whole extra row costs height on every screen to
+    /// serve something typed a few times a day.
+    ///
+    /// Only the letters page: the numbers and symbols pages are already digits.
+    static func digitHint(row: Int, column: Int, mode: KeyboardMode) -> String? {
+        guard mode == .letters, row == 0, (0 ..< digits.count).contains(column) else { return nil }
+        return digits[column]
+    }
+
+    private static let digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
 
     private static func letters(shifted: Bool, needsGlobe: Bool, showsPeriod: Bool) -> [[KeyCap]] {
         let rows = [

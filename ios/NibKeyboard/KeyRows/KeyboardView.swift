@@ -41,8 +41,7 @@ struct KeyboardView: View {
                 for: mode,
                 shifted: shifted,
                 needsGlobe: needsGlobe,
-                showsPeriod: showsPeriod,
-                showsNumberRow: showsNumberRow
+                showsPeriod: showsPeriod
             )
             let keyHeight = keyHeight(forBoardHeight: geo.size.height, rows: rows.count)
             VStack(spacing: rowSpacing) {
@@ -77,6 +76,9 @@ struct KeyboardView: View {
                                 onCursorBegin: onCursorBegin,
                                 onCursorMove: onCursorMove,
                                 labelOverride: labelOverride(for: cap),
+                                hint: showsNumberRow
+                                    ? KeyboardLayout.digitHint(row: rowIndex, column: index, mode: mode)
+                                    : nil,
                                 action: { onKey(cap) }
                             )
                         }
@@ -234,6 +236,9 @@ struct KeyButton: View {
     /// Replaces the cap's own label. Used for the return key, whose text
     /// belongs to the field being typed into rather than to the layout.
     var labelOverride: String?
+
+    /// A digit shown small in the corner and reachable by holding the key.
+    var hint: String?
     var action: () -> Void
 
     /// The height a key wants. `KeyboardView` passes what it can actually give.
@@ -275,6 +280,17 @@ struct KeyButton: View {
                         }
                     }
                     .shadow(color: .black.opacity(0.18), radius: 0, y: 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if let hint {
+                    Text(hint)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(NibStyle.Palette.keyLabel.opacity(0.45))
+                        .padding(.trailing, 4)
+                        .padding(.top, 2)
+                        // The letter is the key; the digit is a note about it.
+                        .allowsHitTesting(false)
+                }
             }
             .scaleEffect(isPressed && pressInside && !showsBalloon ? 0.96 : 1)
             .overlay(alignment: previewAnchor) {
@@ -472,7 +488,20 @@ struct KeyButton: View {
     /// end nearest its own key rather than stranded at the far side.
     private var alternates: [String] {
         guard case .character(let character) = cap else { return [] }
-        let row = KeyAlternates.row(for: character)
+
+        var row = KeyAlternates.row(for: character)
+
+        // The digit joins the held row, and opens one on a key that had none —
+        // holding `q` does nothing without it. Second, after the letter itself,
+        // because the letter is still what the key is for.
+        if let hint {
+            if row.isEmpty {
+                row = [character, hint]
+            } else {
+                row.insert(hint, at: 1)
+            }
+        }
+
         return opensLeftward ? row.reversed() : row
     }
 

@@ -76,7 +76,10 @@ struct SettingsView: View {
                 GroupedRow(title: "Show \u{201C}.\u{201D} on keyboard") {
                     Toggle("", isOn: toggle(\.showPeriodKey)).labelsHidden()
                 }
-                GroupedRow(title: "Show number row") {
+                GroupedRow(
+                    title: "Show numbers on letters",
+                    subtitle: "A small digit on each key of the top row. Hold the key to type it."
+                ) {
                     Toggle("", isOn: toggle(\.showNumberRow)).labelsHidden()
                 }
                 GroupedRow(

@@ -88,8 +88,9 @@ public final class SharedSettings {
         set { defaults.set(newValue, forKey: Key.showPeriodKey) }
     }
 
-    /// A row of digits above the letters. Costs a row of height and saves the
-    /// same trip for numbers.
+    /// Digits shown small on the top row of letters and typed by holding the
+    /// key, as Gboard does. Not a row of its own: that would cost height on
+    /// every screen to serve something typed a few times a day.
     public var showNumberRow: Bool {
         get { defaults.bool(forKey: Key.showNumberRow) }
         set { defaults.set(newValue, forKey: Key.showNumberRow) }

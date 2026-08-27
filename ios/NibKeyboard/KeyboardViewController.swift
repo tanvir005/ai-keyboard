@@ -165,6 +165,13 @@ final class KeyboardViewController: UIInputViewController {
         }
 
         host.rootView.returnLabel = returnLabel()
+
+        // Re-read every time the keyboard comes back, not once when it is
+        // built. The extension outlives any single visit to it, so a setting
+        // changed in the app between visits would otherwise never arrive —
+        // the switch would look broken even where the App Group works.
+        host.rootView.showsPeriod = SharedSettings.shared.showPeriodKey
+        host.rootView.showsNumberRow = SharedSettings.shared.showNumberRow
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
@@ -676,19 +683,7 @@ struct KeyboardRootView: View {
     /// Four rows of keys, their gaps, and the balloon's headroom.
     static let keyAreaHeight: CGFloat = 226
 
-    /// One key plus its gap, for the digits row when it is on.
-    private static let extraRowHeight: CGFloat = KeyButton.height + 8
-
-    /// Taller when the digits are showing, rather than fitting five rows into
-    /// four rows' worth of space — which would shrink every key on the board to
-    /// pay for the one that was added.
-    ///
-    /// Only on the letters page: the numbers and symbols pages have their own
-    /// digits and never gain a row.
-    private var keyAreaHeight: CGFloat {
-        let hasDigits = showsNumberRow && mode == .letters && !showingEmoji
-        return Self.keyAreaHeight + (hasDigits ? Self.extraRowHeight : 0)
-    }
+    private var keyAreaHeight: CGFloat { Self.keyAreaHeight }
 
     var body: some View {
         VStack(spacing: 0) {
