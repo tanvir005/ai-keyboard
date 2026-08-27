@@ -67,11 +67,44 @@ cd ios/NibKit && swift test
 Runs without a simulator. `TextContextResolver` is deliberately UIKit-free so
 its boundary and grapheme math is verifiable here rather than only on-device.
 
+## Connecting the AI
+
+Out of the box the app makes no network calls at all: with no URL configured,
+every tool runs on `StubAPIClient`, exactly as before the backend existed. That
+is a supported state, not a broken one — the build in this repo is that build.
+
+To point it at a deployment of `backend/`, set two build settings in
+`project.yml` under `settings.base` and regenerate:
+
+```yaml
+NIB_API_BASE_URL: "https://your-deployment.vercel.app"   # no trailing path
+NIB_APP_SECRET: ""                                       # optional
+```
+
+XcodeGen copies both into each target's `Info.plist`, where `NibBackend` reads
+them. From then on **Fix** goes to the live service and the other five tools
+stay stubbed — see `NibBackend.liveTools`. Fix is first because spelling and
+grammar have mostly-right answers, so a bad model is obvious immediately;
+"is this rewrite better?" is not a question a first integration should have to
+settle.
+
+Two things worth knowing:
+
+- **Plain `http` is refused** for anything but `localhost`. The payload is the
+  sentence somebody is mid-way through writing.
+- **`NIB_APP_SECRET` is not authentication.** It ships inside the app and can be
+  read out of the IPA. It stops a scanner draining an open endpoint and nothing
+  more.
+
+The API key itself is never here. It lives in one server environment variable,
+because a keyboard shipped with an API key in it is a key on every phone that
+installs it.
+
 ## Current state
 
-Suggestions come from `StubAPIClient` — canned transforms of whatever you type,
-with a simulated delay. No network, no API keys, no backend. `NibAPIClient` is
-the seam a real client drops into later.
+Five of the six tools come from `StubAPIClient` — canned transforms of whatever
+you type, with a simulated delay. Fix uses the live service when one is
+configured, per the section above.
 
 Also stubbed: purchases (the paywall flips a local flag) and the quota counter
 (client-side, display only — real enforcement has to be server-side).
