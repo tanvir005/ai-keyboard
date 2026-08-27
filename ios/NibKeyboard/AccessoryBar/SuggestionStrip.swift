@@ -12,12 +12,6 @@ import NibKit
 /// Shown only when it has something to say, and deliberately the shortest row
 /// on the board — 32pt, so its arrival moves the keys as little as possible.
 ///
-/// This was fixed-height for a while. Showing it conditionally overflowed the
-/// board, because the input view does not resize in step with its content and
-/// everything inside insisted on its own size. Both of those are now flexible,
-/// so a late resize costs a few points of key height rather than the bottom
-/// row of the keyboard.
-///
 /// The parent decides whether to show this, and holds it for a moment after it
 /// empties. It is never rendered empty.
 struct SuggestionStrip: View {

@@ -14,7 +14,6 @@ final class KeyboardViewController: UIInputViewController {
 
     private var model: ToolbarViewModel!
     private var host: UIHostingController<KeyboardRootView>!
-    private var heightConstraint: NSLayoutConstraint?
 
     /// Held rather than created per keystroke: the Taptic Engine needs warming,
     /// and a generator built at press time fires late enough to feel detached
@@ -60,27 +59,21 @@ final class KeyboardViewController: UIInputViewController {
     /// abandoned it, and learning it would poison the table with half-words.
     private var lastKeyWasDelete = false
 
-    /// A short coalescing delay before the words leave the strip.
+    /// A short coalescing delay before the strip leaves.
     ///
-    /// The band itself never goes now, so this is only about what is written in
-    /// it: ordinary typing crosses in and out of having something to say, and
-    /// blanking the row the instant there is nothing makes the text strobe.
-    /// Arriving late would be worse than useless, so only the leaving waits.
+    /// Ordinary typing crosses in and out of having something to say, and
+    /// removing the row the instant there is nothing makes it strobe. Arriving
+    /// late would be worse than useless, so only the leaving waits.
     private static let suggestionLinger: TimeInterval = 0.18
 
-    /// How long the board takes to resize, which now happens only when the
-    /// toolbar opens a panel for a selected tool.
+    /// How long the board takes to change size, shared by the strip's fade so
+    /// the row and the board move as one thing.
     static let resizeDuration: TimeInterval = 0.22
     private var hideSuggestions: DispatchWorkItem?
 
     /// What the learned table last offered, kept so the letters of the next
     /// word can narrow it instead of discarding it. See `documentChanged`.
     private var offered: [String] = []
-
-    /// The toolbar is the one part of the board with an unknown height — it
-    /// grows a title row when a tool is selected. Everything else is constant,
-    /// so this is all the controller needs in order to compute the rest.
-    private var barHeight: CGFloat = 44
 
 
     /// Asks for the system's own keyboard backdrop rather than painting one.
@@ -127,8 +120,7 @@ final class KeyboardViewController: UIInputViewController {
             onKeepTyped: { [weak self] in self?.keepTypedWord($0) },
             onCursorBegin: { [weak self] in self?.beginCursorDrag() },
             onCursorMove: { [weak self] in self?.moveCursor(by: $0) },
-            onAlternate: { [weak self] in self?.insertAlternate($0) },
-            onBarHeight: { [weak self] in self?.barHeightChanged($0) }
+            onAlternate: { [weak self] in self?.insertAlternate($0) }
         )
 
         // Nothing painted here: `loadView` asked for the keyboard material and
@@ -136,6 +128,18 @@ final class KeyboardViewController: UIInputViewController {
         view.backgroundColor = .clear
 
         host = UIHostingController(rootView: root)
+
+        // The board is exactly as tall as what is in it, and nothing else has an
+        // opinion. This is the whole fix: an explicit height constraint was a
+        // second opinion, and it lost whenever it was set before SwiftUI had
+        // laid the new content out — which is every time a suggestion appeared,
+        // because that request came from `textDidChange`. The toolbar happened
+        // to work only because its own layout ran first and the two agreed.
+        //
+        // With the content declaring its height there is nothing left to
+        // disagree with it, whether it grows by a 32pt strip or by a whole
+        // panel.
+        host.sizingOptions = .intrinsicContentSize
         host.view.backgroundColor = .clear
         addChild(host)
         view.addSubview(host.view)
@@ -149,24 +153,6 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        // 44pt tool row + 32pt suggestion strip + 226pt of keys, and it only
-        // changes when the toolbar opens a panel.
-        //
-        // The key area is a fixed 226 and stays that way. Letting it give way
-        // was worse than it sounds: SwiftUI found it could fit the strip by
-        // squashing the keys, so the board never asked the system for more
-        // height at all — the keys silently paid for the strip. Fixed, the
-        // content has one honest ideal height and the board grows to match.
-        let height = view.heightAnchor.constraint(equalToConstant: 302)
-
-        // 999, not 750. `.defaultHigh` sounds like the safe choice and is the
-        // wrong one here: the system's own sizing sits above it, so the request
-        // loses every time and the board stays whatever height it was given.
-        // One below required is high enough to win and still low enough to
-        // yield rather than raise a conflict when the system genuinely insists.
-        height.priority = UILayoutPriority(999)
-        height.isActive = true
-        heightConstraint = height
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -311,41 +297,6 @@ final class KeyboardViewController: UIInputViewController {
         nextWords.save()
     }
 
-    private func barHeightChanged(_ height: CGFloat) {
-        guard height > 0, abs(barHeight - height) > 1 else { return }
-        barHeight = height
-        applyHeight()
-    }
-
-    /// Sets the board's height from what it is made of, rather than measuring
-    /// the result and reacting.
-    ///
-    /// Everything but the toolbar is a known constant, so the total can be
-    /// worked out at the moment the content changes and requested in the same
-    /// breath. Measuring afterwards meant the board spent a beat at the wrong
-    /// size on every appearance of the strip — which is the beat the keys used
-    /// to move in.
-    private func applyHeight() {
-        // The strip is always counted, because it is always there. The only
-        // thing that moves this number now is the toolbar growing a panel for a
-        // selected tool — which is a change the user asked for by tapping, and
-        // one that has always worked.
-        let total = barHeight + KeyboardRootView.keyAreaHeight + SuggestionStrip.height
-
-        guard let constraint = heightConstraint else { return }
-        guard abs(constraint.constant - total) > 1 else { return }
-
-        constraint.constant = total
-
-        // Matched to the strip's own fade so the board and its contents move
-        // as one thing. Left unanimated, the keyboard snaps to its new size
-        // while the strip is still fading in, and the keys jump under the
-        // thumb — which is the part that reads as disruptive, more than the
-        // strip appearing at all.
-        UIView.animate(withDuration: Self.resizeDuration) {
-            self.view.superview?.layoutIfNeeded()
-        }
-    }
 
     // MARK: - Press feedback
 
@@ -703,7 +654,6 @@ struct KeyboardRootView: View {
     var onCursorBegin: () -> Void
     var onCursorMove: (Int) -> Void
     var onAlternate: (String) -> Void
-    var onBarHeight: (CGFloat) -> Void
 
     @State private var mode: KeyboardMode = .letters
     @State private var shifted = true
@@ -720,33 +670,15 @@ struct KeyboardRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Always present, the way Gboard's is. Four attempts at making the
-            // board grow for it failed on a device — the request is made,
-            // `allowsSelfSizing` is set, the priority beats the system's, and
-            // the strip still drew above the top edge and came out sliced. The
-            // reference does not do this at all: Gboard's strip is there on an
-            // empty field, with nothing in it, and its board never changes
-            // height for a suggestion.
-            //
-            // So the height stops depending on the content. A band that is
-            // sometimes blank costs a little screen; a band that is sometimes
-            // cut in half costs the feature.
-            SuggestionStrip(
-                suggestions: suggestions,
-                onPick: onSuggestion,
-                onKeepTyped: onKeepTyped
-            )
-            // The only part of the board whose height is not known in advance:
-            // it grows a title row when a tool is selected. Measuring just this
-            // — rather than the whole board — is what lets the controller
-            // compute the total instead of waiting to be told it.
+            if !suggestions.isEmpty {
+                SuggestionStrip(
+                    suggestions: suggestions,
+                    onPick: onSuggestion,
+                    onKeepTyped: onKeepTyped
+                )
+                .transition(.opacity)
+            }
             AccessoryBarView(model: model)
-                .background {
-                    GeometryReader { geo in
-                        Color.clear.preference(key: BarHeightKey.self, value: geo.size.height)
-                    }
-                }
-                .onPreferenceChange(BarHeightKey.self) { onBarHeight($0) }
 
             if showingEmoji {
                 EmojiPageView(
@@ -795,22 +727,22 @@ struct KeyboardRootView: View {
             // capitalises the middle of somebody's sentence.
             shifted = autoShift()
         }
-        // Anchored to the bottom, and this is the whole of why the keys used to
-        // move. The host view is pinned top and bottom, so between the moment
-        // the strip appears and the moment the system grants the extra height,
-        // the content is taller than the box holding it — and SwiftUI centres
-        // what overflows. Centred, 302pt of board in a 270pt box spilled 16pt
-        // off each end: the keys slid down by 16 and the suggestion text was
-        // sliced along the top. Both complaints, one cause.
+        // No greedy frame here. Claiming all available height would make the
+        // content report an intrinsic size of "as much as you have", which is
+        // exactly the number the input view is now sizing itself from. The
+        // board has to want a specific height in order to be given it.
         //
-        // Bottom-aligned, the overflow can only go upward, which is the
-        // direction there is room in and the direction the board grows anyway.
-        // The keys stay where they are whatever the height is doing.
-        .frame(maxHeight: .infinity, alignment: .bottom)
+        // Bottom-anchoring was protecting against overflow that can no longer
+        // happen: the board is what its contents are, so there is nothing to
+        // spill.
         // Clear, so the keyboard material from `loadView` is what shows through.
         // Keys stay opaque — they have to read as objects on a surface, not as
         // holes in it.
         .background(Color.clear)
+        // Only the strip arriving and leaving is animated. Animating on the
+        // words themselves would cross-fade the row on every keystroke that
+        // changed a suggestion — movement where the user is trying to read.
+        .animation(.easeOut(duration: KeyboardViewController.resizeDuration), value: suggestions.isEmpty)
     }
 
     /// Shift and page switching are view state; everything else is a document
@@ -847,11 +779,3 @@ struct KeyboardRootView: View {
     }
 }
 
-/// The accessory bar reports its own height, which is the one measurement the
-/// board cannot work out for itself.
-private struct BarHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
