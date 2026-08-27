@@ -15,6 +15,17 @@ public enum NextWordSeed {
     }
 
     static let pairs: [(context: String, next: String)] = [
+        // How a message opens, offered on an empty field. Overtaken by the
+        // user's own habits within a few messages, which is the point.
+        (NextWordModel.sentenceStart, "I"),
+        (NextWordModel.sentenceStart, "The"),
+        (NextWordModel.sentenceStart, "Thanks"),
+        (NextWordModel.sentenceStart, "Hi"),
+        (NextWordModel.sentenceStart, "Can"),
+        (NextWordModel.sentenceStart, "Sorry"),
+        (NextWordModel.sentenceStart, "Yes"),
+        (NextWordModel.sentenceStart, "No"),
+
         ("i", "am"), ("i", "have"), ("i", "think"), ("i", "will"),
         ("im", "not"), ("im", "going"),
         ("thank", "you"), ("thanks", "for"),

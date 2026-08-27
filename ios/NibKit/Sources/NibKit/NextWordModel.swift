@@ -34,11 +34,25 @@ public struct NextWordModel: Codable, Equatable {
     ///
     /// - Parameter previous: the words before it, in order. Only the last two
     ///   are used; passing more is harmless.
+    /// Stands in for "nothing yet" — the start of a message.
+    ///
+    /// Given a context of its own so the same table can answer what a person
+    /// opens with, which is a real habit and a strong one: most people begin
+    /// most messages the same handful of ways. Not a word, so it can never
+    /// collide with one.
+    public static let sentenceStart = "\u{1}start"
+
     public mutating func learn(previous: [String], next: String) {
         guard Self.isLearnable(next) else { return }
 
         let usable = previous.filter(Self.isLearnable).suffix(2)
-        guard !usable.isEmpty else { return }
+
+        // First word of the message: record it as an opener rather than
+        // discarding it for having nothing before it.
+        guard !usable.isEmpty else {
+            record(context: Self.sentenceStart, next: next, weight: 1)
+            return
+        }
 
         // Both lengths are stored, so a phrase seen twice can answer a
         // one-word context as well as a two-word one.
@@ -63,7 +77,13 @@ public struct NextWordModel: Codable, Equatable {
     /// answer. Falls back to one word, which is better than nothing.
     public func predictions(after previous: [String], limit: Int = 2) -> [String] {
         let usable = previous.filter(Self.isLearnable).suffix(2)
-        guard !usable.isEmpty else { return [] }
+
+        // An empty field is a question too, and one worth answering: the strip
+        // would otherwise be blank at exactly the moment somebody is deciding
+        // what to write.
+        guard !usable.isEmpty else {
+            return ranked(for: Self.sentenceStart, limit: limit)
+        }
 
         if usable.count == 2 {
             let pair = ranked(for: usable.joined(separator: " "), limit: limit)

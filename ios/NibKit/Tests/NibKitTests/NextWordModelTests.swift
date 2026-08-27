@@ -74,6 +74,38 @@ final class NextWordModelTests: XCTestCase {
         XCTAssertEqual(model.predictions(after: ["the"]), ["alpha", "beta"])
     }
 
+    // MARK: - Opening a message
+
+    /// An empty field used to be answered with nothing, which left the strip
+    /// blank at exactly the moment somebody is deciding what to write.
+    func testAnEmptyFieldIsOfferedOpeners() {
+        XCTAssertFalse(NextWordSeed.model.predictions(after: []).isEmpty)
+    }
+
+    func testTheFirstWordOfAMessageIsLearnedAsAnOpener() {
+        var model = NextWordModel()
+        model.learn(previous: [], next: "Assalamualaikum")
+
+        XCTAssertEqual(model.predictions(after: []), ["Assalamualaikum"])
+    }
+
+    /// The seeded openers are generic; a person's own are not, and should win
+    /// as soon as there is evidence of them.
+    func testAPersonalOpenerOvertakesTheSeeded() {
+        var model = NextWordSeed.model
+        for _ in 0 ..< 3 {
+            model.learn(previous: [], next: "Assalamualaikum")
+        }
+
+        XCTAssertEqual(model.predictions(after: [], limit: 1), ["Assalamualaikum"])
+    }
+
+    /// The sentinel must never be reachable as an ordinary context, or a word
+    /// typed after it would be offered as an opener.
+    func testTheOpenerSentinelIsNotAWord() {
+        XCTAssertFalse(NextWordModel.isLearnable(NextWordModel.sentenceStart))
+    }
+
     // MARK: - What it must refuse to remember
 
     /// The important one. Card numbers, one-time codes, addresses and phone

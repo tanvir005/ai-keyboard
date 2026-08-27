@@ -50,6 +50,49 @@ final class WordFrequencyTests: XCTestCase {
         XCTAssertTrue(WordFrequency.ranked([]).isEmpty)
     }
 
+    // MARK: - Matching a prefix
+
+    /// The case it exists for: one letter, where the system checker returns
+    /// thousands of words in no useful order.
+    func testASingleLetterStillOffersSomething() {
+        XCTAssertFalse(WordFrequency.matching(prefix: "h").isEmpty)
+        XCTAssertFalse(WordFrequency.matching(prefix: "t").isEmpty)
+        XCTAssertFalse(WordFrequency.matching(prefix: "a").isEmpty)
+    }
+
+    func testMatchesActuallyStartWithThePrefix() {
+        for word in WordFrequency.matching(prefix: "he", limit: 5) {
+            XCTAssertTrue(word.hasPrefix("he"), "\(word) does not start with he")
+        }
+    }
+
+    func testTheMostCommonMatchComesFirst() {
+        // "the" outranks every other word beginning with "th".
+        XCTAssertEqual(WordFrequency.matching(prefix: "th", limit: 1), ["the"])
+    }
+
+    func testMatchingIsCaseInsensitive() {
+        XCTAssertEqual(
+            WordFrequency.matching(prefix: "TH", limit: 2),
+            WordFrequency.matching(prefix: "th", limit: 2)
+        )
+    }
+
+    /// Offering the word back to somebody who has just typed it is a wasted
+    /// slot, not a suggestion.
+    func testAnExactMatchIsNotOfferedBack() {
+        XCTAssertFalse(WordFrequency.matching(prefix: "the", limit: 5).contains("the"))
+    }
+
+    func testLimitIsRespected() {
+        XCTAssertLessThanOrEqual(WordFrequency.matching(prefix: "a", limit: 2).count, 2)
+    }
+
+    func testNothingMatchesNothing() {
+        XCTAssertTrue(WordFrequency.matching(prefix: "").isEmpty)
+        XCTAssertTrue(WordFrequency.matching(prefix: "zzzz").isEmpty)
+    }
+
     // MARK: - The list itself
 
     func testListHasNoDuplicates() {
