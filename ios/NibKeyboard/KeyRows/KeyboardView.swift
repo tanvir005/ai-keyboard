@@ -4,11 +4,10 @@ import NibKit
 /// Tints each key's touch area, so what is reachable can be seen rather than
 /// reasoned about.
 ///
-/// Kept because it earned its place. Three rounds went into making the gaps
-/// between keys live, and the last of them was spent fixing something that was
-/// already working — the areas met, they were simply invisible, and neither
-/// reading the source nor tapping the glass could tell the difference. One
-/// photograph could.
+/// Kept because it found the bug by accident. Turning it on made the gaps
+/// between keys work and turning it off made them dead again, with nothing else
+/// changing — which is how a tint meant only to reveal the touch areas revealed
+/// instead that it was creating them. See the background in `KeyButton`.
 ///
 /// Turn it on before arguing about a hit area again.
 enum KeyboardDebug {
@@ -312,7 +311,23 @@ struct KeyButton: View {
             // Nothing is added on a side facing the board's margin, so the
             // strip under the bottom row still belongs to nobody.
             .padding(hitSlop)
-            .background(KeyboardDebug.showTouchAreas ? Color.red.opacity(0.22) : .clear)
+            // Not `.clear`, and this is load-bearing rather than decorative.
+            //
+            // `Color.clear` is not hit-tested, and `contentShape` below does not
+            // rescue it here — proven on a device by accident: the diagnostic
+            // build that tinted this red made the gaps work, and turning the
+            // tint off made them dead again, with no other change between the
+            // two. Three attempts at this failed because the padding was always
+            // right; what was missing was something in the padded area for a
+            // finger to land on.
+            //
+            // An alpha this low is invisible on any ground and still a colour
+            // as far as hit testing is concerned.
+            .background(
+                KeyboardDebug.showTouchAreas
+                    ? Color.red.opacity(0.22)
+                    : Color.black.opacity(0.0001)
+            )
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
