@@ -32,7 +32,13 @@ final class SpellSuggestions {
     /// Below this, the candidate list is enormous and says nothing — `he` is
     /// the opening of thousands of words. Three letters is roughly where a
     /// prefix starts being a guess rather than an alphabet.
-    private static let minimumPrefix = 3
+    /// Below this the system checker is not asked at all.
+    ///
+    /// Not because a short word deserves no suggestion — it deserves one more
+    /// than most — but because the checker is the wrong source for it. One
+    /// letter matches thousands of entries and it takes its time about saying
+    /// so. `WordFrequency` answers the same question instantly and better.
+    private static let checkerMinimumPrefix = 3
 
     private let checker = UITextChecker()
 
@@ -68,8 +74,7 @@ final class SpellSuggestions {
         guard
             let before,
             let word = CurrentWord.trailing(in: before),
-            CurrentWord.isCorrectable(word),
-            word.count >= Self.minimumPrefix
+            CurrentWord.isCorrectable(word)
         else {
             kept = nil
             return WordSuggestions()
@@ -77,6 +82,20 @@ final class SpellSuggestions {
 
         if word == kept { return WordSuggestions() }
         if let cached, cached.word == word { return cached.result }
+
+        // The first letters of a word are answered from the common list rather
+        // than the checker. The strip used to sit blank through them — the part
+        // of a word where a suggestion saves the most typing, going begging
+        // because the only source available was the wrong one.
+        guard word.count >= Self.checkerMinimumPrefix else {
+            let result = WordSuggestions(
+                typed: word,
+                candidates: WordFrequency.matching(prefix: word, limit: limit)
+                    .map { matchCase(of: word, in: $0) }
+            )
+            cached = (word, result)
+            return result
+        }
 
         let range = NSRange(location: 0, length: word.utf16.count)
 
@@ -107,7 +126,12 @@ final class SpellSuggestions {
         // so they are ranked as a group and placed ahead rather than merged.
         // Corrections still follow, for the case where nothing completes —
         // "teh" has no continuations, only a fix.
-        let ordered = WordFrequency.ranked(completions) + WordFrequency.ranked(corrections)
+        // The common list goes on the end as a floor. When the checker knows
+        // nothing about a word — which happens, and happens most on the words
+        // people invent — the strip still has something rather than nothing.
+        let ordered = WordFrequency.ranked(completions)
+            + WordFrequency.ranked(corrections)
+            + WordFrequency.matching(prefix: word, limit: limit)
 
         var seen = Set<String>()
         let candidates = ordered

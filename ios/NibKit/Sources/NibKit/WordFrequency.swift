@@ -30,6 +30,27 @@ public enum WordFrequency {
         }.map(\.element)
     }
 
+    /// The most ordinary words starting with `prefix`, most common first.
+    ///
+    /// This is what the strip offers for the first letter or two of a word,
+    /// where the system checker is both slow and useless: a one-letter prefix
+    /// matches thousands of entries, and it hands them back in an order nobody
+    /// would choose. Nine hundred common words filtered by prefix is instant,
+    /// and the answer is better — the words a person actually writes.
+    public static func matching(prefix: String, limit: Int = 2) -> [String] {
+        let needle = prefix.lowercased()
+        guard !needle.isEmpty else { return [] }
+
+        var found: [String] = []
+        // `common` is already in frequency order, so the first matches are the
+        // right ones and there is nothing to sort.
+        for word in common where word.hasPrefix(needle) && word != needle {
+            found.append(word)
+            if found.count == limit { break }
+        }
+        return found
+    }
+
     private static let index: [String: Int] = {
         var map: [String: Int] = [:]
         map.reserveCapacity(common.count)
