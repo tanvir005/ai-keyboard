@@ -21,8 +21,21 @@ The `.xcodeproj` is **not committed** — it is generated from `project.yml`.
 brew install xcodegen        # once
 git pull
 cd ios
-xcodegen generate            # creates Nib.xcodeproj
+./setup.sh sk-proj-your-openai-key   # writes Secrets.xcconfig, generates the project
 open Nib.xcodeproj
+```
+
+`setup.sh` exists because the steps it replaces are individually trivial and
+collectively a trap: `Secrets.xcconfig` must exist before XcodeGen will run at
+all, it is gitignored so no clone has it, and when it is missing the failure
+names a config file rather than the key. Run it with no argument to set up
+without a key — every AI tool then returns canned stub text.
+
+The manual equivalent, if you prefer:
+
+```bash
+cp Secrets.xcconfig.example Secrets.xcconfig   # then paste your key into it
+xcodegen generate
 ```
 
 Then in Xcode: select the **Nib** scheme → a simulator or device → Run.
