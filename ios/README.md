@@ -81,8 +81,11 @@ tagged `[nib]`.
 
 ### Signing
 
-Both targets declare the `group.com.nib.app` App Group. With a paid team, enable
-the group in the developer portal and set the team on both targets — Settings
+Both targets declare the `group.com.feinapps.aikeybord` App Group — the name
+registered in the developer portal, spelling and all. It must match
+`AppGroup.identifier` character for character; when it does not, nothing errors,
+the shared container is simply never reachable. With a paid team, set that team
+on both targets — Settings
 will then reach the keyboard, along with history, presets and the quota counter.
 
 **How to know it worked:** open Settings in the host app. If the App Group is not
