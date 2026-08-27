@@ -12,6 +12,36 @@ import NibKit
 /// Turn it on before arguing about a hit area again.
 enum KeyboardDebug {
     static let showTouchAreas = false
+
+    /// How much memory to claim on purpose, and how.
+    ///
+    /// The question this answers: can a Chinese or Japanese dictionary of tens
+    /// of megabytes live inside a keyboard extension at all? iOS gives an
+    /// extension far less memory than an app and kills it without warning when
+    /// it goes over — the keyboard simply disappears mid-sentence.
+    ///
+    /// Run `.mapped` and `.heap` at the same size and compare. Mapped pages are
+    /// clean and can be evicted; heap pages are dirty and cannot. If mapped
+    /// survives where heap dies, the dictionary must be memory-mapped and read
+    /// in place rather than parsed into Swift values — which decides the shape
+    /// of months of work.
+    ///
+    /// Walk the sizes up until it dies: 5, 15, 30, 60. Turn it back to `.off`
+    /// when the number is known.
+    enum ProbeMode: Equatable {
+        case off
+        case mapped(megabytes: Int)
+        case heap(megabytes: Int)
+    }
+
+    static let memoryProbe: ProbeMode = .off
+
+    /// Draws the live footprint in the corner of the keyboard.
+    ///
+    /// Separate from the probe so memory can be watched during ordinary typing
+    /// — which is the only way to learn what the keyboard costs before any
+    /// dictionary is added to it.
+    static let showMemoryReadout = false
 }
 
 /// The key grid.

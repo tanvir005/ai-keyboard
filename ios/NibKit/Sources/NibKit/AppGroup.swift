@@ -5,9 +5,20 @@ import Foundation
 /// These strings must match, character for character, the values in
 /// `Nib.entitlements` and `NibKeyboard.entitlements`. Change them in one
 /// place only — here — and update both entitlements files to match.
+///
+/// They did not match for a while, and the way that failed is worth knowing:
+/// the entitlements moved to the team's own identifier while this file still
+/// said `group.com.nib.app`. Asking for a group the app was never granted is
+/// not an error — `UserDefaults(suiteName:)` simply returns nil and the
+/// fallback below takes over. Everything keeps working, nothing is shared, and
+/// no message anywhere says why. The warning in Settings exists because of it.
+///
+/// `aikeybord` is spelled that way in the developer portal. It is the
+/// registered identifier, so it is the correct one, typo and all — renaming it
+/// means a new group and losing whatever is stored under the old one.
 public enum AppGroup {
-    public static let identifier = "group.com.nib.app"
-    public static let keychainAccessGroup = "group.com.nib.app"
+    public static let identifier = "group.com.feinapps.aikeybord"
+    public static let keychainAccessGroup = "group.com.feinapps.aikeybord"
 
     /// Shared defaults for settings, quota, tone presets and the
     /// last-known Full Access flag.
