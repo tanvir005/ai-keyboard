@@ -78,13 +78,33 @@ final class NextWordStore {
         return !excluded.contains { $0 == type }
     }
 
+    /// Writes the table out, off the thread that draws the keyboard.
+    ///
+    /// This used to sort a table of up to two thousand entries, encode it to
+    /// JSON and write it to disk, all on the main thread, every twelfth word —
+    /// which is to say mid-sentence, several times a message. Not slow enough
+    /// to look like lag and exactly slow enough to feel like a stutter.
+    ///
+    /// The copy is taken here, synchronously, so what gets written is the table
+    /// as it was at this moment rather than whatever it becomes while the write
+    /// is in flight.
     func save() {
         guard unsavedLearnings > 0 else { return }
         unsavedLearnings = 0
 
-        model.prune(to: Self.maximumContexts)
-        guard let data = try? JSONEncoder().encode(model) else { return }
-        defaults.set(data, forKey: Self.storageKey)
+        // Only when it is actually over the cap. Sorting the whole table to
+        // discover it is within its limit is the common case and pure waste.
+        if model.contextCount > Self.maximumContexts {
+            model.prune(to: Self.maximumContexts)
+        }
+
+        let snapshot = model
+        let defaults = defaults
+
+        DispatchQueue.global(qos: .utility).async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            defaults.set(data, forKey: Self.storageKey)
+        }
     }
 
     /// Back to the seed rather than to nothing: an empty table would leave the
