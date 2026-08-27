@@ -93,3 +93,10 @@ jobs:
       - name: Typecheck
         working-directory: backend
         run: npm run typecheck
+
+      # Types alone let a handler written to the wrong calling convention
+      # through — it typechecks perfectly against itself. This runs the
+      # endpoint over a real HTTP server. No key, no network.
+      - name: Smoke-test the endpoint
+        working-directory: backend
+        run: npm run smoke

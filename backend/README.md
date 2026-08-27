@@ -50,10 +50,25 @@ trains on that text makes the promise false.
 ## Layout
 
 ```
-api/suggest.ts          the endpoint: validates, delegates, never leaks upstream errors
+api/suggest.ts          Vercel adapter: Node (req, res) in, JSON out. Nothing else.
+lib/handler.ts          the endpoint: validates, delegates, never leaks upstream errors
 lib/prompt.ts           one prompt, shared by every provider
-lib/providers/types.ts  the seam — the only thing the endpoint knows about
+lib/providers/types.ts  the seam — the only thing the handler knows about
 lib/providers/*.ts      one adapter each; provider vocabulary stops here
+smoke.mjs               runs the endpoint over real HTTP; no key, no network
+```
+
+`api/suggest.ts` is deliberately thin. The first deployment failed because it
+was written to the web-standard `Request`/`Response` signature while the
+runtime hands Node's `(req, res)` — every request 500ed, and the ones that did
+not hung for 300 seconds waiting on a `res.end()` that a returned object was
+never going to produce. A host's calling convention should be able to be wrong
+in one small file, so now it is: `lib/handler.ts` takes data and returns data,
+and moving to another host is a new adapter rather than a new endpoint.
+
+```bash
+npm run typecheck
+npm run smoke      # both run in CI
 ```
 
 The prompt is shared deliberately. If each adapter wrote its own, switching
