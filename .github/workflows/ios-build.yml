@@ -32,6 +32,28 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      # Secrets.xcconfig holds local API keys and is gitignored, so it is never
+      # on a CI checkout — but project.yml lists it under `configFiles`, and
+      # XcodeGen fails outright when a config file is missing. Without this the
+      # whole job dies before a single line is compiled, which is exactly what
+      # happened on the branch that introduced it.
+      #
+      # The committed .example is empty of secrets, and an empty key is a
+      # supported state: those tools fall through to the stub. So CI builds the
+      # same project a fresh clone would, minus any key.
+      #
+      # Guarded rather than a plain `cp` so this step is a no-op on branches
+      # that predate the example file.
+      - name: Stand in for local secrets
+        working-directory: ios
+        run: |
+          if [ -f Secrets.xcconfig.example ] && [ ! -f Secrets.xcconfig ]; then
+            cp Secrets.xcconfig.example Secrets.xcconfig
+            echo "created Secrets.xcconfig from the committed example"
+          else
+            echo "no Secrets.xcconfig.example on this branch — nothing to do"
+          fi
+
       - name: Generate Xcode project
         working-directory: ios
         run: |
