@@ -22,14 +22,17 @@ android/             Future phase
 
 ## Status
 
-Runnable end to end **with stubbed data** — no backend required.
+Runnable end to end. All six AI tools call **OpenAI directly** once a key is
+set (`ios/Secrets.xcconfig` — see [ios/README.md](ios/README.md#connecting-the-ai));
+with no key they run on canned stubs, so the app works either way.
 
 | Working | Stubbed | Not started |
 |---|---|---|
-| All 8 host-app screens | AI suggestions (canned transforms) | Backend API |
-| History + Presets screens | Purchases (flips a local flag) | Real StoreKit |
-| Custom QWERTY keyboard | Quota counter (client-side) | Android |
+| All 8 host-app screens | Purchases (flips a local flag) | Real StoreKit |
+| History + Presets screens | Quota counter (client-side) | Android |
+| Custom QWERTY keyboard | | |
 | AI toolbar + tap-to-insert | | |
+| Six AI tools via OpenAI (with key) | | |
 
 ## v1 scope: six tools
 

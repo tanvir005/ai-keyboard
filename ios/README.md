@@ -69,42 +69,75 @@ its boundary and grapheme math is verifiable here rather than only on-device.
 
 ## Connecting the AI
 
-Out of the box the app makes no network calls at all: with no URL configured,
-every tool runs on `StubAPIClient`, exactly as before the backend existed. That
-is a supported state, not a broken one — the build in this repo is that build.
+The app calls **OpenAI directly** for every AI tool — Rewrite, Tone, Translate,
+Fix, Synonyms, and Ask. With no key configured it makes no network calls at all:
+every tool runs on `StubAPIClient` (canned transforms with a simulated delay),
+which is a supported state, not a broken one.
 
-To point it at a deployment of `backend/`, set two build settings in
-`project.yml` under `settings.base` and regenerate:
+### Adding your OpenAI key
 
-```yaml
-NIB_API_BASE_URL: "https://your-deployment.vercel.app"   # no trailing path
-NIB_APP_SECRET: ""                                       # optional
+The key is **not committed** — it lives in `ios/Secrets.xcconfig`, which is
+gitignored. To set it up:
+
+```bash
+cd ios
+cp Secrets.xcconfig.example Secrets.xcconfig   # once, on each machine
+# open Secrets.xcconfig and paste your key (no quotes — xcconfig values are literal):
+#     NIB_OPENAI_KEY = sk-proj-...
+#     NIB_OPENAI_MODEL = gpt-5-mini            # optional; defaults to gpt-4o-mini
+xcodegen generate
 ```
 
-XcodeGen copies both into each target's `Info.plist`, where `NibBackend` reads
-them. From then on **Fix** goes to the live service and the other five tools
-stay stubbed — see `NibBackend.liveTools`. Fix is first because spelling and
-grammar have mostly-right answers, so a bad model is obvious immediately;
-"is this rewrite better?" is not a question a first integration should have to
-settle.
+`project.yml` maps `Secrets.xcconfig` as the base config for **both Debug and
+Release** (`configFiles`), so Xcode substitutes `$(NIB_OPENAI_KEY)` into each
+target's `Info.plist` at build time. `NibBackend` reads it and hands Rewrite /
+Tone / Translate / Fix / Synonyms / Ask to `OpenAIClient`. Leave the key empty
+and those tools stay on the stub — nothing breaks.
 
-Two things worth knowing:
+Notes:
 
-- **Plain `http` is refused** for anything but `localhost`. The payload is the
-  sentence somebody is mid-way through writing.
-- **`NIB_APP_SECRET` is not authentication.** It ships inside the app and can be
-  read out of the IPA. It stops a scanner draining an open endpoint and nothing
-  more.
+- **No `temperature` is sent.** The gpt-5 reasoning models reject any value but
+  the default (1), and every other model already defaults to it, so omitting it
+  is the one choice that works across models.
+- **Model** defaults to `gpt-4o-mini`. Set `NIB_OPENAI_MODEL` to your exact
+  model id (`gpt-5-mini`, `gpt-5`, `gpt-4o`, …). Reasoning models like the gpt-5
+  family give higher quality but add latency and token cost per edit.
 
-The API key itself is never here. It lives in one server environment variable,
-because a keyboard shipped with an API key in it is a key on every phone that
-installs it.
+### Release / publishing builds
+
+The key comes from the **local `Secrets.xcconfig`, not git**. So on any machine
+that builds a release for the App Store — this Mac, another Mac, or CI — that
+file must exist first, or `xcodegen generate` fails and the tools fall back to
+the stub. Before you **Archive → Distribute**: confirm `ios/Secrets.xcconfig`
+holds the real key, run `xcodegen generate`, then archive. The resulting IPA
+ships with the key baked into the app and keyboard `Info.plist`.
+
+### ⚠️ The key ships inside the app
+
+A keyboard shipped with an API key in it is a key on **every phone that installs
+it**, extractable from the IPA in minutes and billable to whoever owns it until
+rotated. This is the deliberate trade `OpenAIClient` makes by calling OpenAI
+directly. Mitigate it:
+
+- Use a **dedicated, spend-limited** OpenAI key with a hard monthly cap.
+- **Rotate** it regularly, and immediately if it leaks.
+- Treat higher security (a proxy that holds the key server-side) as the real
+  fix when there is something worth protecting — see the backend below.
+
+### The backend (set aside)
+
+An earlier design routed Fix through a hosted service in `backend/` so the
+provider key could stay server-side. That wiring is intact but **dormant**:
+`NibBackend.liveTools` is empty, so no tool is routed to it even when
+`NIB_API_BASE_URL` is set. To hand a tool back to the service, put it in
+`liveTools` (and remove it from `openAITools`) — `makeClient` reconnects the
+layer automatically. `NIB_APP_SECRET` is not authentication; it ships inside the
+app and only stops a scanner draining an open endpoint.
 
 ## Current state
 
-Five of the six tools come from `StubAPIClient` — canned transforms of whatever
-you type, with a simulated delay. Fix uses the live service when one is
-configured, per the section above.
+All six tools call OpenAI when a key is configured; otherwise they come from
+`StubAPIClient`. The Vercel backend is set aside (see above).
 
 Also stubbed: purchases (the paywall flips a local flag) and the quota counter
 (client-side, display only — real enforcement has to be server-side).
