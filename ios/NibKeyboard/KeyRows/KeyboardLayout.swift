@@ -96,15 +96,29 @@ enum KeyboardMode {
 /// so the fundamentals that ship must be solid before the surface grows.
 enum KeyboardLayout {
 
-    static func rows(for mode: KeyboardMode, shifted: Bool, needsGlobe: Bool) -> [[KeyCap]] {
-        switch mode {
-        case .letters: letters(shifted: shifted, needsGlobe: needsGlobe)
-        case .numbers: numbers(needsGlobe: needsGlobe)
-        case .symbols: symbols(needsGlobe: needsGlobe)
+    static func rows(
+        for mode: KeyboardMode,
+        shifted: Bool,
+        needsGlobe: Bool,
+        showsPeriod: Bool = false,
+        showsNumberRow: Bool = false
+    ) -> [[KeyCap]] {
+        let rows: [[KeyCap]] = switch mode {
+        case .letters: letters(shifted: shifted, needsGlobe: needsGlobe, showsPeriod: showsPeriod)
+        case .numbers: numbers(needsGlobe: needsGlobe, showsPeriod: showsPeriod)
+        case .symbols: symbols(needsGlobe: needsGlobe, showsPeriod: showsPeriod)
         }
+
+        // Only above the letters. The numbers and symbols pages already have
+        // digits, and a second set would be a row of duplicates.
+        guard showsNumberRow, mode == .letters else { return rows }
+        return [digits] + rows
     }
 
-    private static func letters(shifted: Bool, needsGlobe: Bool) -> [[KeyCap]] {
+    private static let digits: [KeyCap] =
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map { KeyCap.character($0) }
+
+    private static func letters(shifted: Bool, needsGlobe: Bool, showsPeriod: Bool) -> [[KeyCap]] {
         let rows = [
             ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
             ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
@@ -112,29 +126,29 @@ enum KeyboardLayout {
         ]
         var result = rows.map { $0.map { KeyCap.character(shifted ? $0.uppercased() : $0) } }
         result[2] = [.shift] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .numbers, needsGlobe: needsGlobe))
+        result.append(bottomRow(mode: .numbers, needsGlobe: needsGlobe, showsPeriod: showsPeriod))
         return result
     }
 
-    private static func numbers(needsGlobe: Bool) -> [[KeyCap]] {
+    private static func numbers(needsGlobe: Bool, showsPeriod: Bool) -> [[KeyCap]] {
         var result: [[KeyCap]] = [
             ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"].map { KeyCap.character($0) },
             ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""].map { KeyCap.character($0) },
             [".", ",", "?", "!", "'"].map { KeyCap.character($0) },
         ]
         result[2] = [.mode(.symbols)] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe))
+        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe, showsPeriod: showsPeriod))
         return result
     }
 
-    private static func symbols(needsGlobe: Bool) -> [[KeyCap]] {
+    private static func symbols(needsGlobe: Bool, showsPeriod: Bool) -> [[KeyCap]] {
         var result: [[KeyCap]] = [
             ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="].map { KeyCap.character($0) },
             ["_", "\\", "|", "~", "<", ">", "€", "£", "¥", "•"].map { KeyCap.character($0) },
             [".", ",", "?", "!", "'"].map { KeyCap.character($0) },
         ]
         result[2] = [.mode(.numbers)] + result[2] + [.backspace]
-        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe))
+        result.append(bottomRow(mode: .letters, needsGlobe: needsGlobe, showsPeriod: showsPeriod))
         return result
     }
 
@@ -145,10 +159,14 @@ enum KeyboardLayout {
     /// globe would be a duplicate spending a key's width. The emoji key takes
     /// that slot instead, which is where both stock keyboards put it and where
     /// people's thumbs go looking.
-    private static func bottomRow(mode: KeyboardMode, needsGlobe: Bool) -> [KeyCap] {
+    private static func bottomRow(mode: KeyboardMode, needsGlobe: Bool, showsPeriod: Bool) -> [KeyCap] {
         var row: [KeyCap] = [.mode(mode), .emoji]
         if needsGlobe { row.append(.globe) }
-        row.append(contentsOf: [.space, .newline])
+        row.append(.space)
+        // Between space and return, where Gboard puts it. The most common
+        // punctuation there is should not cost a trip to another page.
+        if showsPeriod { row.append(.character(".")) }
+        row.append(.newline)
         return row
     }
 }

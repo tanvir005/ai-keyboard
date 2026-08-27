@@ -26,6 +26,11 @@ public final class SharedSettings {
             // host app wrote, and lives on these registered values forever.
             // A dead-feeling keyboard is the worse failure mode.
             Key.hapticsEnabled: true,
+            // Both on, so the layout they change is visible without hunting
+            // for a switch. Worth revisiting before shipping: a number row
+            // makes the board a row taller for everyone who never asked.
+            Key.showPeriodKey: true,
+            Key.showNumberRow: true,
         ])
     }
 
@@ -46,6 +51,8 @@ public final class SharedSettings {
         static let soundEnabled = "sound_enabled"
         static let hapticsEnabled = "haptics_enabled"
         static let predictionEnabled = "prediction_enabled"
+        static let showPeriodKey = "show_period_key"
+        static let showNumberRow = "show_number_row"
         static let readFullDraft = "read_full_draft"
         static let onboardingComplete = "onboarding_complete"
         static let tonePresets = "tone_presets"
@@ -72,6 +79,20 @@ public final class SharedSettings {
     public var predictionEnabled: Bool {
         get { defaults.bool(forKey: Key.predictionEnabled) }
         set { defaults.set(newValue, forKey: Key.predictionEnabled) }
+    }
+
+    /// A full stop next to the space bar, as Gboard has. Saves a trip to the
+    /// numbers page for the most common punctuation there is.
+    public var showPeriodKey: Bool {
+        get { defaults.bool(forKey: Key.showPeriodKey) }
+        set { defaults.set(newValue, forKey: Key.showPeriodKey) }
+    }
+
+    /// A row of digits above the letters. Costs a row of height and saves the
+    /// same trip for numbers.
+    public var showNumberRow: Bool {
+        get { defaults.bool(forKey: Key.showNumberRow) }
+        set { defaults.set(newValue, forKey: Key.showNumberRow) }
     }
 
     /// Governs how much text the extension may read. See `TextContextResolver`.

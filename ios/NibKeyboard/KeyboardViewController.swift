@@ -115,6 +115,8 @@ final class KeyboardViewController: UIInputViewController {
             autoShift: { [weak self] in self?.shouldAutoCapitalize() ?? true },
             returnLabel: returnLabel(),
             needsGlobe: needsInputModeSwitchKey,
+            showsPeriod: SharedSettings.shared.showPeriodKey,
+            showsNumberRow: SharedSettings.shared.showNumberRow,
             suggestions: WordSuggestions(),
             onSuggestion: { [weak self] in self?.replaceCurrentWord(with: $0) },
             onKeepTyped: { [weak self] in self?.keepTypedWord($0) },
@@ -648,6 +650,8 @@ struct KeyboardRootView: View {
     var autoShift: () -> Bool
     var returnLabel: String
     var needsGlobe: Bool
+    var showsPeriod: Bool
+    var showsNumberRow: Bool
     var suggestions: WordSuggestions
     var onSuggestion: (String) -> Void
     var onKeepTyped: (String) -> Void
@@ -665,8 +669,22 @@ struct KeyboardRootView: View {
     /// A ceiling, not a fixed size. The toolbar above grows a title row when a
     /// tool is selected, and a fixed height here pushes the bottom key row off
     /// the input view entirely — where it cannot be tapped at all.
+    /// Four rows of keys, their gaps, and the balloon's headroom.
     static let keyAreaHeight: CGFloat = 226
-    private var keyAreaHeight: CGFloat { Self.keyAreaHeight }
+
+    /// One key plus its gap, for the digits row when it is on.
+    private static let extraRowHeight: CGFloat = KeyButton.height + 8
+
+    /// Taller when the digits are showing, rather than fitting five rows into
+    /// four rows' worth of space — which would shrink every key on the board to
+    /// pay for the one that was added.
+    ///
+    /// Only on the letters page: the numbers and symbols pages have their own
+    /// digits and never gain a row.
+    private var keyAreaHeight: CGFloat {
+        let hasDigits = showsNumberRow && mode == .letters && !showingEmoji
+        return Self.keyAreaHeight + (hasDigits ? Self.extraRowHeight : 0)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -700,6 +718,8 @@ struct KeyboardRootView: View {
                     shifted: shifted,
                     returnLabel: returnLabel,
                     needsGlobe: needsGlobe,
+                    showsPeriod: showsPeriod,
+                    showsNumberRow: showsNumberRow,
                     onKey: handle,
                     onPress: onPress,
                     onHoldBegin: onHoldBegin,

@@ -15,6 +15,8 @@ struct KeyboardView: View {
     /// False when iOS draws its own keyboard switcher below us, which is the
     /// usual case. See `KeyboardLayout.bottomRow`.
     var needsGlobe: Bool = false
+    var showsPeriod: Bool = false
+    var showsNumberRow: Bool = false
     var onKey: (KeyCap) -> Void
     var onPress: (KeyCap) -> Void
     var onHoldBegin: (KeyCap) -> Void
@@ -35,7 +37,13 @@ struct KeyboardView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let rows = KeyboardLayout.rows(for: mode, shifted: shifted, needsGlobe: needsGlobe)
+            let rows = KeyboardLayout.rows(
+                for: mode,
+                shifted: shifted,
+                needsGlobe: needsGlobe,
+                showsPeriod: showsPeriod,
+                showsNumberRow: showsNumberRow
+            )
             let keyHeight = keyHeight(forBoardHeight: geo.size.height, rows: rows.count)
             VStack(spacing: rowSpacing) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
