@@ -69,6 +69,11 @@ public enum MemoryProbe {
 
         public let megabytes: Int
 
+        /// Sum of the bytes read by `touchAllPages`, kept only so the reads
+        /// cannot be optimised away. It wraps, and is not worth asserting on —
+        /// use `firstByte` to check the mapping reaches the file.
+        public private(set) var checksum: UInt8 = 0
+
         fileprivate init(base: UnsafeMutableRawPointer, length: Int, url: URL) {
             self.base = base
             self.length = length
@@ -76,21 +81,30 @@ public enum MemoryProbe {
             self.megabytes = length / (1024 * 1024)
         }
 
-        /// Reads one byte per page so the pages are actually faulted in.
+        /// The first byte of the mapping.
+        public var firstByte: UInt8 {
+            base.assumingMemoryBound(to: UInt8.self)[0]
+        }
+
+        /// Reads one byte per page so the pages are actually faulted in, and
+        /// returns how many it touched.
         ///
         /// Without this, `mmap` costs nothing measurable — the mapping exists
         /// but no page has been touched, and the probe would report a success
         /// that means nothing. A real dictionary lookup touches pages, so the
-        /// test has to as well.
+        /// experiment has to as well.
         @discardableResult
-        public func touchAllPages() -> UInt8 {
+        public func touchAllPages() -> Int {
             let pageSize = Int(getpagesize())
             let bytes = base.assumingMemoryBound(to: UInt8.self)
-            var checksum: UInt8 = 0
+            var sum: UInt8 = 0
+            var touched = 0
             for offset in stride(from: 0, to: length, by: pageSize) {
-                checksum = checksum &+ bytes[offset]
+                sum = sum &+ bytes[offset]
+                touched += 1
             }
-            return checksum
+            checksum = sum
+            return touched
         }
 
         deinit {
@@ -107,8 +121,10 @@ public enum MemoryProbe {
 
     /// Writes a file of `megabytes` and maps it read-only.
     ///
-    /// The file is written once and deleted when the mapping is released, so
-    /// repeated runs do not accumulate junk in the container.
+    /// The file is deleted when the mapping is released, so a run leaves
+    /// nothing behind in the container. That also means it is written fresh
+    /// each time — a second's work at the largest size, and not worth the
+    /// bookkeeping to avoid.
     public static func mapFile(
         megabytes: Int,
         directory: URL = FileManager.default.temporaryDirectory
@@ -116,22 +132,21 @@ public enum MemoryProbe {
         let length = megabytes * 1024 * 1024
         let url = directory.appendingPathComponent("nib-memory-probe-\(megabytes)mb.bin")
 
-        if !FileManager.default.fileExists(atPath: url.path) {
-            // Written a megabyte at a time: building the whole thing as one
-            // Data would claim on the heap exactly what this is trying to
-            // avoid claiming, and the measurement would be of the writer.
-            guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
-                throw ProbeError.couldNotCreateFile
-            }
-            guard let handle = FileHandle(forWritingAtPath: url.path) else {
-                throw ProbeError.couldNotOpenFile
-            }
-            let chunk = Data(repeating: 0x4E, count: 1024 * 1024) // "N"
-            for _ in 0 ..< megabytes {
-                handle.write(chunk)
-            }
-            try? handle.close()
+        // Written a megabyte at a time: building the whole thing as one Data
+        // would claim on the heap exactly what this is trying to avoid
+        // claiming, and the measurement would be of the writer.
+        try? FileManager.default.removeItem(at: url)
+        guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+            throw ProbeError.couldNotCreateFile
         }
+        guard let handle = FileHandle(forWritingAtPath: url.path) else {
+            throw ProbeError.couldNotOpenFile
+        }
+        let chunk = Data(repeating: 0x4E, count: 1024 * 1024) // "N"
+        for _ in 0 ..< megabytes {
+            handle.write(chunk)
+        }
+        try? handle.close()
 
         let descriptor = open(url.path, O_RDONLY)
         guard descriptor >= 0 else { throw ProbeError.couldNotOpenFile }

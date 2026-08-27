@@ -72,7 +72,7 @@ struct SettingsView: View {
         if !AppGroup.isSharedContainerAvailable {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Settings aren't reaching the keyboard")
-                    .font(NibStyle.Typography.body(14).weight(.semibold))
+                    .font(NibStyle.Typography.body(14, weight: .semibold))
                 Text("This build can't open the shared App Group, so the switches below only change the app. Sign both targets with a team that has \(AppGroup.identifier) enabled.")
                     .font(NibStyle.Typography.body(13))
                     .foregroundStyle(NibStyle.Palette.inkFaint)
@@ -86,7 +86,7 @@ struct SettingsView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: NibStyle.Metrics.cornerRadius)
-                    .strokeBorder(.orange.opacity(0.45), lineWidth: 1)
+                    .strokeBorder(Color.orange.opacity(0.45), lineWidth: 1)
             )
             .padding(.bottom, 4)
         }
