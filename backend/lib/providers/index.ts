@@ -11,11 +11,16 @@ import { UnknownProviderError, type Provider } from "./types.js";
  * prompt is doing the work. If it reads well on the cheapest model in each
  * family, it will read at least as well on a larger one; the reverse tells you
  * nothing.
+ *
+ * These names go stale. `gemini-2.5-flash-lite` sat here until the API answered
+ * "no longer available to new users" — the code was fine, the string had simply
+ * aged out. `AI_MODEL` overrides any of them without a code change, which is
+ * the quicker fix when it happens again.
  */
 const DEFAULT_MODEL: Record<string, string> = {
   anthropic: "claude-haiku-4-5",
   openai: "gpt-5-nano",
-  google: "gemini-2.5-flash-lite",
+  google: "gemini-3.5-flash-lite",
 };
 
 /**
