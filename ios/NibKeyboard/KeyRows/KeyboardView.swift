@@ -321,12 +321,19 @@ struct KeyButton: View {
             // right; what was missing was something in the padded area for a
             // finger to land on.
             //
-            // An alpha this low is invisible on any ground and still a colour
-            // as far as hit testing is concerned.
+            // The alpha is the whole trick, and it has a hard floor: UIKit skips
+            // hit-testing anything at or below 0.01, so a fill at 0.0001 is
+            // treated exactly like `Color.clear` and changes nothing. That is
+            // why the first attempt at this failed as completely as no attempt
+            // at all — invisible was taken too literally.
+            //
+            // 0.02 clears the floor with room to spare and is about five parts
+            // in 255 against the board. If it ever shows, lower it toward 0.011
+            // rather than past it.
             .background(
                 KeyboardDebug.showTouchAreas
                     ? Color.red.opacity(0.22)
-                    : Color.black.opacity(0.0001)
+                    : Color.black.opacity(0.02)
             )
             .contentShape(Rectangle())
             .gesture(
