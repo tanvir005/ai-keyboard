@@ -1,6 +1,21 @@
 import SwiftUI
 import NibKit
 
+/// Temporary. Tints each key's touch area so a screenshot shows what is
+/// actually reachable, rather than what the code says should be.
+///
+/// Three attempts at making the gaps between keys live have failed on a
+/// device while reading correct in the source, which means the reading is
+/// wrong somewhere I cannot see from here. A red rectangle per key answers it
+/// in one photograph: if the gaps are red the tiles do meet and the fault is
+/// in what happens after the touch lands; if they are grey the tiles do not
+/// meet and the fault is the layout.
+///
+/// Set back to false once that photograph exists.
+enum KeyboardDebug {
+    static let showTouchAreas = true
+}
+
 /// The key grid.
 ///
 /// Rendered by us, because iOS gives a keyboard extension no access to the
@@ -298,6 +313,7 @@ struct KeyButton: View {
             // Nothing is added on a side facing the board's margin, so the
             // strip under the bottom row still belongs to nobody.
             .padding(hitSlop)
+            .background(KeyboardDebug.showTouchAreas ? Color.red.opacity(0.22) : .clear)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
