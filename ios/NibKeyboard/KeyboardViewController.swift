@@ -157,6 +157,68 @@ final class KeyboardViewController: UIInputViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
+        startMemoryProbeIfRequested()
+    }
+
+    // MARK: - Memory probe (debug)
+
+    /// Held for the extension's lifetime — releasing either of these unmaps or
+    /// frees, and a probe that has been let go measures nothing.
+    private var mappedProbe: MemoryProbe.MappedFile?
+    private var heapProbe: Data?
+    private var memoryLabel: UILabel?
+    private var memoryTimer: Timer?
+
+    /// Claims memory and draws the footprint, when `KeyboardDebug` asks for it.
+    ///
+    /// Deliberately a UIKit label added over the hosting view rather than
+    /// anything inside the SwiftUI tree: the key grid's geometry took four
+    /// attempts to get right, and a debug readout is not worth the risk of
+    /// disturbing it. This sits on top and never lays out a key.
+    private func startMemoryProbeIfRequested() {
+        switch KeyboardDebug.memoryProbe {
+        case .off:
+            break
+        case .mapped(let megabytes):
+            do {
+                let file = try MemoryProbe.mapFile(megabytes: megabytes)
+                file.touchAllPages()
+                mappedProbe = file
+                NSLog("[nib] mapped %d MB, footprint now %d MB", megabytes, MemoryProbe.footprintMB ?? -1)
+            } catch {
+                NSLog("[nib] mapped probe failed: %@", String(describing: error))
+            }
+        case .heap(let megabytes):
+            heapProbe = MemoryProbe.allocateHeap(megabytes: megabytes)
+            NSLog("[nib] heap %d MB, footprint now %d MB", megabytes, MemoryProbe.footprintMB ?? -1)
+        }
+
+        guard KeyboardDebug.showMemoryReadout || KeyboardDebug.memoryProbe != .off else { return }
+
+        let label = UILabel()
+        label.font = .monospacedDigitSystemFont(ofSize: 10, weight: .medium)
+        label.textColor = .systemRed
+        label.textAlignment = .right
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            label.topAnchor.constraint(equalTo: view.topAnchor, constant: 2),
+        ])
+        memoryLabel = label
+
+        let tick = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            guard let self, let footprint = MemoryProbe.footprintMB else { return }
+            self.memoryLabel?.text = "\(footprint) MB"
+        }
+        memoryTimer = tick
+    }
+
+    deinit {
+        // A repeating timer outlives the controller unless it is stopped, and
+        // an extension that keeps waking to update a label nobody can see is
+        // the wrong thing to leave behind in a memory experiment.
+        memoryTimer?.invalidate()
     }
 
     override func viewWillAppear(_ animated: Bool) {

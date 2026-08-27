@@ -57,9 +57,45 @@ struct SettingsView: View {
         }
     }
 
+    /// Shown only when the App Group is not reachable.
+    ///
+    /// Without it, `AppGroup.defaults` quietly falls back to this process's own
+    /// `UserDefaults` — so every switch below appears to work, saves, reads
+    /// back, and changes nothing about the keyboard. That silence cost real
+    /// time: the switches were reported broken twice before the cause was
+    /// found, because nothing anywhere said the two processes were not talking.
+    ///
+    /// It is a development aid, and it disappears the moment the group is
+    /// signed correctly — which is exactly when it stops being true.
+    @ViewBuilder
+    private var appGroupWarning: some View {
+        if !AppGroup.isSharedContainerAvailable {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Settings aren't reaching the keyboard")
+                    .font(NibStyle.Typography.body(14).weight(.semibold))
+                Text("This build can't open the shared App Group, so the switches below only change the app. Sign both targets with a team that has \(AppGroup.identifier) enabled.")
+                    .font(NibStyle.Typography.body(13))
+                    .foregroundStyle(NibStyle.Palette.inkFaint)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(
+                NibStyle.Palette.surface,
+                in: RoundedRectangle(cornerRadius: NibStyle.Metrics.cornerRadius)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: NibStyle.Metrics.cornerRadius)
+                    .strokeBorder(.orange.opacity(0.45), lineWidth: 1)
+            )
+            .padding(.bottom, 4)
+        }
+    }
+
     private var keyboardSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SectionLabel(text: "Keyboard")
+            appGroupWarning
             GroupedCard {
                 GroupedRow(title: "Language") {
                     HStack(spacing: 4) {

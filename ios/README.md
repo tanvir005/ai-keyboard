@@ -44,10 +44,57 @@ Without Full Access the keyboard still types normally — the tool row is
 replaced by a banner explaining how to turn it on. That degradation is
 intentional and worth checking.
 
+## The memory probe
+
+Answers one question, and it is the most expensive assumption in the language
+roadmap: **can a Chinese or Japanese dictionary of tens of megabytes live inside
+a keyboard extension?** iOS gives an extension far less memory than an app and
+kills it without warning — the keyboard just disappears mid-sentence.
+
+In `NibKeyboard/KeyRows/KeyboardView.swift`:
+
+```swift
+enum KeyboardDebug {
+    static let memoryProbe: ProbeMode = .mapped(megabytes: 30)
+    static let showMemoryReadout = true
+}
+```
+
+Run, open the keyboard in Messages, type for a minute. The footprint shows in
+red in the top-right corner. If the keyboard vanishes, that size is over the
+limit.
+
+Walk it up until it dies — **5, 15, 30, 60** — then run the same sizes as
+`.heap` instead of `.mapped`. The gap between the two is the answer:
+
+- **Mapped** pages are clean. The kernel can evict and re-read them, so a
+  memory-mapped dictionary can be much larger before anything dies.
+- **Heap** pages are dirty. They count in full and cannot be reclaimed — this is
+  what parsing a dictionary into Swift values costs.
+
+If mapped survives where heap dies, the dictionary must be `mmap`ped and read in
+place. That decides the shape of months of work, and it costs half a day to find
+out.
+
+Set both back to `.off` / `false` when the numbers are known. `NSLog` lines are
+tagged `[nib]`.
+
 ### Signing
 
-Both targets declare the `group.com.nib.app` App Group. With a personal team,
-Xcode will usually provision it automatically on first build. If signing fails:
+Both targets declare the `group.com.nib.app` App Group. With a paid team, enable
+the group in the developer portal and set the team on both targets — Settings
+will then reach the keyboard, along with history, presets and the quota counter.
+
+**How to know it worked:** open Settings in the host app. If the App Group is not
+reachable, an orange warning sits above the Keyboard section. When it is
+reachable, the warning is gone and a switch flipped in the app changes the
+keyboard the next time it opens.
+
+Without the group, `AppGroup.defaults` silently falls back to this process's own
+`UserDefaults` — every switch saves, reads back, and changes nothing. That
+silence is why the warning exists.
+
+If signing fails:
 
 - Set your team on both targets (Signing & Capabilities), **or**
 - For a quick look at the UI only, delete the `CODE_SIGN_ENTITLEMENTS` lines
