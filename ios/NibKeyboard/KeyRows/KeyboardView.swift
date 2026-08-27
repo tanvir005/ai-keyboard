@@ -1,19 +1,18 @@
 import SwiftUI
 import NibKit
 
-/// Temporary. Tints each key's touch area so a screenshot shows what is
-/// actually reachable, rather than what the code says should be.
+/// Tints each key's touch area, so what is reachable can be seen rather than
+/// reasoned about.
 ///
-/// Three attempts at making the gaps between keys live have failed on a
-/// device while reading correct in the source, which means the reading is
-/// wrong somewhere I cannot see from here. A red rectangle per key answers it
-/// in one photograph: if the gaps are red the tiles do meet and the fault is
-/// in what happens after the touch lands; if they are grey the tiles do not
-/// meet and the fault is the layout.
+/// Kept because it earned its place. Three rounds went into making the gaps
+/// between keys live, and the last of them was spent fixing something that was
+/// already working — the areas met, they were simply invisible, and neither
+/// reading the source nor tapping the glass could tell the difference. One
+/// photograph could.
 ///
-/// Set back to false once that photograph exists.
+/// Turn it on before arguing about a hit area again.
 enum KeyboardDebug {
-    static let showTouchAreas = true
+    static let showTouchAreas = false
 }
 
 /// The key grid.
