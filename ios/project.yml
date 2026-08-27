@@ -16,6 +16,13 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+# Secret build settings (NIB_OPENAI_KEY, NIB_OPENAI_MODEL) come from this
+# gitignored file so they never reach git. It must exist for `xcodegen generate`
+# to succeed — copy Secrets.xcconfig.example to Secrets.xcconfig to create it.
+configFiles:
+  Debug: Secrets.xcconfig
+  Release: Secrets.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -38,6 +45,18 @@ settings:
     # read out of the IPA. It only stops a scanner draining an open endpoint.
     NIB_API_BASE_URL: "https://ai-keyboard-two.vercel.app"
     NIB_APP_SECRET: ""
+
+    # OpenAI, called directly from the keyboard for Rewrite / Tone / Translate.
+    #
+    # NIB_OPENAI_KEY and NIB_OPENAI_MODEL are NOT set here on purpose: this file
+    # is committed, and a live `sk-...` key does not belong in git history. They
+    # come from Secrets.xcconfig instead (see `configFiles` below), which is
+    # gitignored. Copy Secrets.xcconfig.example to Secrets.xcconfig and paste
+    # your key there. Leave it empty and those three tools stay on the stub.
+    #
+    # WARNING: the key still ships inside the built app and is extractable from
+    # the IPA, billable to whoever owns it until rotated. That is the deliberate
+    # trade in `OpenAIClient`. Prefer a restricted, low-limit key, rotate freely.
 
 packages:
   NibKit:
@@ -78,6 +97,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NibAPIBaseURL: $(NIB_API_BASE_URL)
         NibAppSecret: $(NIB_APP_SECRET)
+        NibOpenAIKey: $(NIB_OPENAI_KEY)
+        NibOpenAIModel: $(NIB_OPENAI_MODEL)
 
   # ---------------------------------------------------------------
   # Keyboard extension — the actual custom keyboard + AI toolbar
@@ -115,6 +136,8 @@ targets:
             RequestsOpenAccess: true
         NibAPIBaseURL: $(NIB_API_BASE_URL)
         NibAppSecret: $(NIB_APP_SECRET)
+        NibOpenAIKey: $(NIB_OPENAI_KEY)
+        NibOpenAIModel: $(NIB_OPENAI_MODEL)
 
 schemes:
   Nib:

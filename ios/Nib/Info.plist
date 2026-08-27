@@ -22,6 +22,14 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NibAPIBaseURL</key>
+	<string>$(NIB_API_BASE_URL)</string>
+	<key>NibAppSecret</key>
+	<string>$(NIB_APP_SECRET)</string>
+	<key>NibOpenAIKey</key>
+	<string>$(NIB_OPENAI_KEY)</string>
+	<key>NibOpenAIModel</key>
+	<string>$(NIB_OPENAI_MODEL)</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

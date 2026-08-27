@@ -70,8 +70,16 @@ final class NibBackendTests: XCTestCase {
         XCTAssertEqual(tone, ["stub"])
     }
 
-    func testFixIsTheOnlyToolLiveByDefault() {
-        XCTAssertEqual(NibBackend.liveTools, [.fix])
+    /// The Vercel service is set aside for now: no tool is routed to it, so it
+    /// is never called even when a base URL stays configured.
+    func testNoToolIsRoutedToTheBackend() {
+        XCTAssertTrue(NibBackend.liveTools.isEmpty)
+    }
+
+    /// Every real tool routes to OpenAI now the backend is set aside — anything
+    /// missing would fall through to the visibly-canned stub.
+    func testEveryRealToolRoutesToOpenAI() {
+        XCTAssertEqual(NibBackend.openAITools, Set(NibTool.allCases))
     }
 
     /// A build with no URL set must behave exactly as it did before the backend

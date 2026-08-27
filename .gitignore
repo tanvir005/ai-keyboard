@@ -28,6 +28,11 @@ xcuserdata/
 .swiftpm/
 Package.resolved
 
+# --- Local secrets ---
+# Holds NIB_OPENAI_KEY for local builds. Never commit a live key; the committed
+# Secrets.xcconfig.example is the template to copy from.
+ios/Secrets.xcconfig
+
 # --- macOS / Windows noise ---
 .DS_Store
 Thumbs.db
