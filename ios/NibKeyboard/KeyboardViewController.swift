@@ -66,9 +66,6 @@ final class KeyboardViewController: UIInputViewController {
     /// late would be worse than useless, so only the leaving waits.
     private static let suggestionLinger: TimeInterval = 0.18
 
-    /// How long the board takes to change size, shared by the strip's fade so
-    /// the row and the board move as one thing.
-    static let resizeDuration: TimeInterval = 0.22
     private var hideSuggestions: DispatchWorkItem?
 
     /// What the learned table last offered, kept so the letters of the next
@@ -244,20 +241,27 @@ final class KeyboardViewController: UIInputViewController {
     /// distracting than one that simply sits there. Arriving late would be
     /// worse than useless, so only the departure waits.
     private func publish(_ words: WordSuggestions) {
-        hideSuggestions?.cancel()
-        hideSuggestions = nil
-
         guard words.isEmpty else {
+            hideSuggestions?.cancel()
+            hideSuggestions = nil
+
             if host.rootView.suggestions != words {
                 host.rootView.suggestions = words
             }
             return
         }
 
-        guard !host.rootView.suggestions.isEmpty else { return }
+        // A hide already on its way is left alone. Cancelling and re-scheduling
+        // it on every keystroke meant the strip left at an unpredictable moment
+        // — pushed further out by each empty update, then going all at once
+        // whenever the typing paused. One departure, at the time it was first
+        // decided on.
+        guard !host.rootView.suggestions.isEmpty, hideSuggestions == nil else { return }
 
         let work = DispatchWorkItem { [weak self] in
-            self?.host.rootView.suggestions = WordSuggestions()
+            guard let self else { return }
+            hideSuggestions = nil
+            host.rootView.suggestions = WordSuggestions()
         }
         hideSuggestions = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.suggestionLinger, execute: work)
@@ -694,7 +698,6 @@ struct KeyboardRootView: View {
                     onPick: onSuggestion,
                     onKeepTyped: onKeepTyped
                 )
-                .transition(.opacity)
             }
             AccessoryBarView(model: model)
 
@@ -759,10 +762,18 @@ struct KeyboardRootView: View {
         // Keys stay opaque — they have to read as objects on a surface, not as
         // holes in it.
         .background(Color.clear)
-        // Only the strip arriving and leaving is animated. Animating on the
-        // words themselves would cross-fade the row on every keystroke that
-        // changed a suggestion — movement where the user is trying to read.
-        .animation(.easeOut(duration: KeyboardViewController.resizeDuration), value: suggestions.isEmpty)
+        // Deliberately unanimated, and this is the fix for the shake.
+        //
+        // The board's height comes from this content's intrinsic size, and the
+        // system animates the keyboard frame when that changes. Animating the
+        // same change here as well put two animators on one number: on the way
+        // in they agreed closely enough to look passable, and on the way out
+        // they did not, which is what the judder was.
+        //
+        // So SwiftUI changes the layout in one step and the system animates the
+        // result. One animator, one curve — and it is the system's own, which
+        // is the one the rest of the keyboard already moves to.
+        .animation(nil, value: suggestions.isEmpty)
     }
 
     /// Shift and page switching are view state; everything else is a document
