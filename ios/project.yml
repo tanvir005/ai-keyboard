@@ -10,7 +10,7 @@
 name: Nib
 
 options:
-  bundleIdPrefix: com.nib
+  bundleIdPrefix: com.feinapps
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -79,7 +79,11 @@ targets:
         codeSign: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nib.app
+        # The registered App ID, spelled the way the developer portal has it —
+        # the same typo as the App Group, and correct for the same reason. It
+        # has to sit under the team's own prefix or automatic signing has
+        # nothing to match and refuses to sign.
+        PRODUCT_BUNDLE_IDENTIFIER: com.feinapps.aikeybord
         PRODUCT_NAME: Nib
         CODE_SIGN_ENTITLEMENTS: Nib/Nib.entitlements
         GENERATE_INFOPLIST_FILE: NO
@@ -113,7 +117,11 @@ targets:
         product: NibKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.nib.app.keyboard
+        # Must be the app's identifier plus one component. Xcode refuses to
+        # embed an extension whose identifier is not prefixed by its parent's,
+        # and the error names the binary rather than saying which of the two
+        # is wrong — which is how these two drift apart unnoticed.
+        PRODUCT_BUNDLE_IDENTIFIER: com.feinapps.aikeybord.keyboard
         PRODUCT_NAME: NibKeyboard
         CODE_SIGN_ENTITLEMENTS: NibKeyboard/NibKeyboard.entitlements
         GENERATE_INFOPLIST_FILE: NO
