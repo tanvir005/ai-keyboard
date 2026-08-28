@@ -6,10 +6,11 @@ import Foundation
 /// `LiveAPIClient` explains at length why the app normally does *not* hold a
 /// provider key: a keyboard extension shipped with one is a key on every phone
 /// that installs it, extractable from the IPA and billable until rotated. This
-/// client accepts that trade deliberately — it is wired in only when a build
-/// carries `NIB_OPENAI_KEY`, and only for the taste-based tools (Rewrite, Tone,
-/// Translate) whose answers a hosted service was never going to gate anyway.
-/// Fix keeps going through Nib's own service; see `NibBackend.makeClient()`.
+/// client accepts that trade deliberately — it is wired in whenever a build
+/// carries `NIB_OPENAI_KEY`, and it handles every tool: Rewrite, Tone,
+/// Translate, Fix, Synonyms and Ask. Nothing is routed to Nib's own service
+/// any more — `NibBackend.liveTools` is empty, so the hosted layer is skipped
+/// even when a base URL is configured. See `NibBackend.makeClient()`.
 ///
 /// ## Why the transport is injectable
 /// Same reason as `LiveAPIClient`: the request this builds and the replies it

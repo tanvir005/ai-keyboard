@@ -95,8 +95,8 @@ public enum NibBackend {
             )
         }
 
-        // Rewrite / Tone / Translate route straight to OpenAI when a key is set.
-        // Layered outermost so it wins for its tools regardless of the above.
+        // Every tool routes straight to OpenAI when a key is set. Layered
+        // outermost so it wins for its tools regardless of the above.
         if let openAIKey {
             client = RoutedAPIClient(
                 live: OpenAIClient(apiKey: openAIKey, model: openAIModel),

@@ -46,7 +46,7 @@ settings:
     NIB_API_BASE_URL: "https://ai-keyboard-two.vercel.app"
     NIB_APP_SECRET: ""
 
-    # OpenAI, called directly from the keyboard for Rewrite / Tone / Translate.
+    # OpenAI, called directly from the keyboard for every AI tool.
     #
     # NIB_OPENAI_KEY and NIB_OPENAI_MODEL are NOT set here on purpose: this file
     # is committed, and a live `sk-...` key does not belong in git history. They
